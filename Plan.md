@@ -20,86 +20,87 @@
 *   **Task 1.7:** Implement a secure File Storage Manager using `path_provider` to handle app directory paths for storing unzipped EPUB assets, cover images, and the offline dictionary.
 *   **Task 1.8:** Set up a global error-handling and structured logging service to monitor WebView crashes, database read/write failures, and state anomalies.
 
+---
 
+## Phase 2: Core Architecture & EPUB Foundation
 
-## Phase 1: Core Architecture & EPUB Foundation
-
-### Epic 1: [F01] High-Fidelity EPUB Rendering Engine
+### Epic 2: [F01] High-Fidelity EPUB Rendering Engine
 **User Story:** As a reader, I want to open an EPUB file and read it with customizable fonts and themes, so I have a premium reading experience equivalent to Kindle.
 
-*   **Task 1.1:** Initialize Flutter project, configure Riverpod for state management, and set up the `flutter_inappwebview` package.
-*   **Task 1.2:** Implement local file system routing to load unzipped EPUB assets into the local WebView server.
-*   **Task 1.3:** Integrate the `Epub.js` library and create the bidirectional JavaScript-to-Dart communication channel.
-*   **Task 1.4:** Write and inject custom CSS stylesheets for the three core themes ("Parchment", "Midnight", "Ink").
-*   **Task 1.5:** Implement DOM manipulation scripts to override hardcoded publisher CSS (e.g., forcing transparent backgrounds and overriding font-families).
-*   **Task 1.6:** Develop the pagination logic and dynamic font-resizing functions, ensuring layout recalculation occurs in <200ms.
-*   **Task 1.7:** Build the Table of Contents (TOC) parser and map EPUB chapters to a native Flutter drawer UI.
-*   **Task 1.8:** Implement Canonical Fragment Identifier (CFI) generation to save the user's exact scroll position on exit.
+*   **Task 2.1:** Initialize Flutter project, configure Riverpod for state management, and set up the `flutter_inappwebview` package.
+*   **Task 2.2:** Implement local file system routing to load unzipped EPUB assets into the local WebView server.
+*   **Task 2.3:** Integrate the `Epub.js` library and create the bidirectional JavaScript-to-Dart communication channel.
+*   **Task 2.4:** Write and inject custom CSS stylesheets for the three core themes ("Parchment", "Midnight", "Ink").
+*   **Task 2.5:** Implement DOM manipulation scripts to override hardcoded publisher CSS (e.g., forcing transparent backgrounds and overriding font-families).
+*   **Task 2.6:** Develop the pagination logic and dynamic font-resizing functions, ensuring layout recalculation occurs in <200ms.
+*   **Task 2.7:** Build the Table of Contents (TOC) parser and map EPUB chapters to a native Flutter drawer UI.
+*   **Task 2.8:** Implement Canonical Fragment Identifier (CFI) generation to save the user's exact scroll position on exit.
 
 ---
 
-## Phase 2: The "Silent Flow" Capture System
+## Phase 3: The "Silent Flow" Capture System
 
-### Epic 2: [F02 & F03] The "Ghost" Highlight & Context Capture
+### Epic 3: [F02 & F03] The "Ghost" Highlight & Context Capture
 **User Story:** As an intermediate learner, I want to quickly swipe a word to save it and its surrounding sentence without seeing a pop-up dictionary, so my reading flow isn't interrupted.
 
-*   **Task 2.1:** Override default iOS/Android native text selection behaviors (Copy/Look Up) within the WebView container.
-*   **Task 2.2:** Write JavaScript event listeners to detect a single-word tap/swipe, isolating the specific DOM text node.
-*   **Task 2.3:** Implement the 500ms "Shimmer" CSS animation (Radial Gradient Mask) triggered on the selected text node.
-*   **Task 2.4:** Integrate native Haptic Feedback (iOS `UIImpactFeedbackStyleLight` / Android equivalent) mapped to the JS tap event.
-*   **Task 2.5:** Develop a JS DOM traversal algorithm to scan backwards/forwards from the highlighted word to find the nearest sentence terminators (`.`, `!`, `?`).
-*   **Task 2.6:** Construct the string payload: `[Sentence_Before] + [Target_Word] + [Sentence_After]`.
-*   **Task 2.7:** Capture current metadata (Book ID, Chapter, exact CFI location) and bundle it with the string payload.
-*   **Task 2.8:** Serialize the payload, send it through the JS bridge, and write an asynchronous SQLite `INSERT` to the `ghost_highlights` table.
+*   **Task 3.1:** Override default iOS/Android native text selection behaviors (Copy/Look Up) within the WebView container.
+*   **Task 3.2:** Write JavaScript event listeners to detect a single-word tap/swipe, isolating the specific DOM text node.
+*   **Task 3.3:** Implement the 500ms "Shimmer" CSS animation (Radial Gradient Mask) triggered on the selected text node.
+*   **Task 3.4:** Integrate native Haptic Feedback (iOS `UIImpactFeedbackStyleLight` / Android equivalent) mapped to the JS tap event.
+*   **Task 3.5:** Develop a JS DOM traversal algorithm to scan backwards/forwards from the highlighted word to find the nearest sentence terminators (`.`, `!`, `?`).
+*   **Task 3.6:** Construct the string payload: `[Sentence_Before] + [Target_Word] + [Sentence_After]`.
+*   **Task 3.7:** Capture current metadata (Book ID, Chapter, exact CFI location) and bundle it with the string payload.
+*   **Task 3.8:** Serialize the payload, send it through the JS bridge, and write an asynchronous SQLite `INSERT` to the `ghost_highlights` table.
 
 ---
 
-## Phase 3: Data Management & Vault UI
+## Phase 4: Data Management & Vault UI
 
-### Epic 3: [F04, F11, F13] Local Library & Scholar's Vault
+### Epic 4: [F04, F11, F13] Local Library & Scholar's Vault
 **User Story:** As a user, I want to manage my imported books and browse a beautiful archive of the words I've captured, so I can see my progress.
 
-*   **Task 3.1:** Define and instantiate the SQLite schema (Tables: `books`, `ghost_highlights`, `user_stats`).
-*   **Task 3.2:** Implement native file picker integration (iOS Files / Android Documents) to import `.epub` files into the app's secure sandbox.
-*   **Task 3.3:** Extract metadata (Cover Art Blob, Title, Author) from the EPUB package and save it to the `books` table.
-*   **Task 3.4:** Build the native Flutter UI for the "Library Shelf" utilizing a Staggered Grid layout with cover art caching.
-*   **Task 3.5:** Develop the "Scholar's Vault" List View, grouping captured `ghost_highlights` by `book_id`.
-*   **Task 3.6:** Implement Full-Text SQLite search indexing to allow instant querying of target words and context sentences.
-*   **Task 3.7:** Build the database cascade deletion logic: when a book is deleted, prompt the user to either retain or delete associated Vault words.
-*   **Task 3.8:** Implement the "Jump to Source" deep-link routing, passing the saved `CFI` to the EPUB Reader to open the exact page.
+*   **Task 4.1:** Define and instantiate the SQLite schema (Tables: `books`, `ghost_highlights`, `user_stats`).
+*   **Task 4.2:** Implement native file picker integration (iOS Files / Android Documents) to import `.epub` files into the app's secure sandbox.
+*   **Task 4.3:** Extract metadata (Cover Art Blob, Title, Author) from the EPUB package and save it to the `books` table.
+*   **Task 4.4:** Build the native Flutter UI for the "Library Shelf" utilizing a Staggered Grid layout with cover art caching.
+*   **Task 4.5:** Develop the "Scholar's Vault" List View, grouping captured `ghost_highlights` by `book_id`.
+*   **Task 4.6:** Implement Full-Text SQLite search indexing to allow instant querying of target words and context sentences.
+*   **Task 4.7:** Build the database cascade deletion logic: when a book is deleted, prompt the user to either retain or delete associated Vault words.
+*   **Task 4.8:** Implement the "Jump to Source" deep-link routing, passing the saved `CFI` to the EPUB Reader to open the exact page.
 
 ---
 
-## Phase 4: Gamification & Recall
+## Phase 5: Gamification & Recall
 
-### Epic 4: [F05 & F12] The Restoration Game & Reveal Logic
+### Epic 5: [F05 & F12] The Restoration Game & Reveal Logic
 **User Story:** As a learner, I want to play a contextual fill-in-the-blank game using my saved words, so I can transfer them to my active vocabulary.
 
-*   **Task 4.1:** Implement the SuperMemo-2 (SM2) Spaced Repetition logic to calculate the `next_review_date` for each captured word.
-*   **Task 4.2:** Build the SQLite query to generate the daily "Game Deck," prioritizing words by recency and SM2 schedule.
-*   **Task 4.3:** Develop the "Cloze-Test" UI card, rendering the context string with the `target_word` replaced by a `[___]` blank.
-*   **Task 4.4:** Write the logic to scramble the letters of the `target_word` into interactive, draggable bottom-sheet tiles.
-*   **Task 4.5:** Implement input validation logic and trigger the "pencil-on-paper" audio asset upon correct completion.
-*   **Task 4.6:** Build the "Reveal UI": a 3D flip or accordion expansion that displays the dictionary definition post-answer.
-*   **Task 4.7:** Update the word's `mastery_level` (0-5) in SQLite and recalculate its next SM2 interval based on user success/failure.
-*   **Task 4.8:** Update the UI State for the "Mastery Visualization" dashboard to reflect the newly restored words.
+*   **Task 5.1:** Implement the SuperMemo-2 (SM2) Spaced Repetition logic to calculate the `next_review_date` for each captured word.
+*   **Task 5.2:** Build the SQLite query to generate the daily "Game Deck," prioritizing words by recency and SM2 schedule.
+*   **Task 5.3:** Develop the "Cloze-Test" UI card, rendering the context string with the `target_word` replaced by a `[___]` blank.
+*   **Task 5.4:** Write the logic to scramble the letters of the `target_word` into interactive, draggable bottom-sheet tiles.
+*   **Task 5.5:** Implement input validation logic and trigger the "pencil-on-paper" audio asset upon correct completion.
+*   **Task 5.6:** Build the "Reveal UI": a 3D flip or accordion expansion that displays the dictionary definition post-answer.
+*   **Task 5.7:** Update the word's `mastery_level` (0-5) in SQLite and recalculate its next SM2 interval based on user success/failure.
+*   **Task 5.8:** Update the UI State for the "Mastery Visualization" dashboard to reflect the newly restored words.
 
 ---
 
-## Phase 5: Offline Dictionary & Final Polish
+## Phase 6: Offline Dictionary & Final Polish
 
-### Epic 5: [F07 & F14] Offline Dictionary & Emergency Hints
+### Epic 6: [F07 & F14] Offline Dictionary & Emergency Hints
 **User Story:** As a user, I want instant access to synonyms when I am completely stuck, even if I have no internet connection.
 
-*   **Task 5.1:** Compress a subset of the English WordNet database (Synonyms and short definitions) into a pre-packaged SQLite `.db` file (~15MB).
-*   **Task 5.2:** Implement an initialization script to copy the dictionary `.db` from the app bundle to the active local directory on first launch.
-*   **Task 5.3:** Build a lightweight querying service to fetch synonyms based on the exact string match of the highlighted word.
-*   **Task 5.4:** Write JS logic to detect a "Double-Tap" gesture on a word inside the EPUB reader.
-*   **Task 5.5:** Develop a transient Flutter Tooltip/Overlay UI for the "Emergency Synonym" that sits immediately above the selected word.
-*   **Task 5.6:** Implement logic to auto-dismiss the tooltip upon any scroll event or tap outside the overlay.
-*   **Task 5.7:** Connect the offline dictionary querying service to the "Reveal Logic" in the Restoration Game.
-*   **Task 5.8:** Implement the "Silent Onboarding" UI flow (3-slide carousel) to set user expectations before granting access to the main app interface.
+*   **Task 6.1:** Compress a subset of the English WordNet database (Synonyms and short definitions) into a pre-packaged SQLite `.db` file (~15MB).
+*   **Task 6.2:** Implement an initialization script to copy the dictionary `.db` from the app bundle to the active local directory on first launch.
+*   **Task 6.3:** Build a lightweight querying service to fetch synonyms based on the exact string match of the highlighted word.
+*   **Task 6.4:** Write JS logic to detect a "Double-Tap" gesture on a word inside the EPUB reader.
+*   **Task 6.5:** Develop a transient Flutter Tooltip/Overlay UI for the "Emergency Synonym" that sits immediately above the selected word.
+*   **Task 6.6:** Implement logic to auto-dismiss the tooltip upon any scroll event or tap outside the overlay.
+*   **Task 6.7:** Connect the offline dictionary querying service to the "Reveal Logic" in the Restoration Game.
+*   **Task 6.8:** Implement the "Silent Onboarding" UI flow (3-slide carousel) to set user expectations before granting access to the main app interface.
 
+---
 
 ## Phase 7: QA, Optimization & Store Deployment
 
