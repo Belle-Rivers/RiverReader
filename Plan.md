@@ -11,14 +11,14 @@
 ### Epic 1: Scaffold App Architecture, State, and Local Database
 **User Story:** As an engineering team, we need a robust, scalable project structure with a configured local database and state management engine so that feature development is decoupled, secure, and reliable.
 
-*   **Task 1.1:** Initialize the Flutter environment, configure linting rules, and implement a Feature-First or Clean Architecture folder structure (UI, Domain, Data layers).
-*   **Task 1.2:** Integrate and configure `Riverpod` for global state management, dependency injection, and reactivity across the app.
-*   **Task 1.3:** Set up application routing (e.g., using `GoRouter`) defining the navigation graph for the Library Shelf, EPUB Reader, and Scholar's Vault.
-*   **Task 1.4:** Build the global UI Theming engine, defining the color palettes, typography scales (Serif/Sans-serif), and logic to switch between "Parchment," "Midnight," and "Ink" modes.
-*   **Task 1.5:** Initialize the local "Back-End" using `sqflite` (or `drift` for type-safety), and execute the initial schema migrations (Tables: `books`, `ghost_highlights`).
-*   **Task 1.6:** Develop the Data Access Objects (DAOs) and the Repository layer to handle CRUD operations between the Flutter front-end and the SQLite back-end.
-*   **Task 1.7:** Implement a secure File Storage Manager using `path_provider` to handle app directory paths for storing unzipped EPUB assets, cover images, and the offline dictionary.
-*   **Task 1.8:** Set up a global error-handling and structured logging service to monitor WebView crashes, database read/write failures, and state anomalies.
+*   ✅ **Task 1.1:** Initialize the Flutter environment, configure linting rules, and implement a Feature-First or Clean Architecture folder structure (UI, Domain, Data layers).
+*   ✅ **Task 1.2:** Integrate and configure `Riverpod` for global state management, dependency injection, and reactivity across the app.
+*   ✅ **Task 1.3:** Set up application routing (e.g., using `GoRouter`) defining the navigation graph for the Library Shelf, EPUB Reader, and Scholar's Vault.
+*   ✅ **Task 1.4:** Build the global UI Theming engine, defining the color palettes, typography scales (Serif/Sans-serif), and logic to switch between "Parchment," "Midnight," and "Ink" modes.
+*   ✅ **Task 1.5:** Initialize the local "Back-End" using `sqflite` (or `drift` for type-safety), and execute the initial schema migrations (Tables: `books`, `ghost_highlights`).
+*   ✅ **Task 1.6:** Develop the Data Access Objects (DAOs) and the Repository layer to handle CRUD operations between the Flutter front-end and the SQLite back-end.
+*   ✅ **Task 1.7:** Implement a secure File Storage Manager using `path_provider` to handle app directory paths for storing unzipped EPUB assets, cover images, and the offline dictionary.
+*   ✅ **Task 1.8:** Set up a global error-handling and structured logging service to monitor WebView crashes, database read/write failures, and state anomalies.
 
 ---
 
