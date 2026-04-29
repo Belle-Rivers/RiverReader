@@ -52,7 +52,6 @@ class AppThemeState {
           textTheme: baseTextTheme,
         );
       case AppThemeMode.parchment:
-      default:
         return ThemeData(
           brightness: Brightness.light,
           scaffoldBackgroundColor: _parchmentBackground,
@@ -75,7 +74,6 @@ class AppThemeState {
       case AppThemeMode.ink:
         return _inkForeground;
       case AppThemeMode.parchment:
-      default:
         return _parchmentForeground;
     }
   }

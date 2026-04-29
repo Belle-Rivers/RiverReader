@@ -15,6 +15,7 @@ dependencies:
   path: ^1.9.0
   path_provider: ^2.1.2
   logger: ^2.0.2
+  sqflite_common_ffi_web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

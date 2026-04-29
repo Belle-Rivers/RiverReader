@@ -10,14 +10,16 @@ class LibraryShelfPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AsyncValue<List<Book>> booksValue = ref.watch(libraryShelfControllerProvider);
+    final AsyncValue<List<Book>> booksValue =
+        ref.watch(libraryShelfControllerProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library Shelf'),
         actions: <Widget>[
           IconButton(
             tooltip: 'Add demo book',
-            onPressed: () => ref.read(libraryShelfControllerProvider.notifier).addDemoBook(),
+            onPressed: () =>
+                ref.read(libraryShelfControllerProvider.notifier).addDemoBook(),
             icon: const Icon(Icons.add),
           ),
           const ThemeModeMenuButton(),
@@ -26,7 +28,12 @@ class LibraryShelfPage extends ConsumerWidget {
       body: booksValue.when(
         data: (List<Book> books) {
           if (books.isEmpty) {
-            return const Center(child: Text('No books yet. Tap + to add a demo book.'));
+            return const Center(
+              child: Text(
+                'Hey Ms.Yağmur, this is a test ;)',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+            );
           }
           return ListView.separated(
             itemCount: books.length,
@@ -40,7 +47,9 @@ class LibraryShelfPage extends ConsumerWidget {
                   tooltip: 'Delete',
                   onPressed: book.id == null
                       ? null
-                      : () => ref.read(libraryShelfControllerProvider.notifier).deleteBook(book.id!),
+                      : () => ref
+                          .read(libraryShelfControllerProvider.notifier)
+                          .deleteBook(book.id!),
                   icon: const Icon(Icons.delete_outline),
                 ),
               );
@@ -48,12 +57,13 @@ class LibraryShelfPage extends ConsumerWidget {
           );
         },
         error: (Object error, StackTrace stackTrace) {
-          ErrorLogger.logError('Failed to load books', error, stackTrace);
-          return const Center(child: Text('Failed to load books.'));
+          ErrorLogger.logError(
+              'Hello Ms.Yağmur! Thank you for everything ;)', error, stackTrace);
+          return const Center(
+              child: Text('Hello Ms.Yağmur! Thank you for everything ;).'));
         },
         loading: () => const Center(child: CircularProgressIndicator()),
       ),
     );
   }
 }
-
