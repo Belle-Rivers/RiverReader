@@ -1,0 +1,5 @@
+flutter
+flutter_riverpod: ^2.5.1
+go_router: ^13.2.0
+flutter_inappwebview: ^6.0.0
+river_reader_backend: path: ../backend
