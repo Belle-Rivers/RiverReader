@@ -1,0 +1,27 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../features/library/presentation/library_shelf_page.dart';
+import '../../features/reader/presentation/reader_page.dart';
+import '../../features/vault/presentation/vault_page.dart';
+
+final appRouterProvider = Provider<GoRouter>((ref) {
+  return GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (BuildContext context, GoRouterState state) => const LibraryShelfPage(),
+      ),
+      GoRoute(
+        path: '/reader',
+        builder: (BuildContext context, GoRouterState state) => const ReaderPage(),
+      ),
+      GoRoute(
+        path: '/vault',
+        builder: (BuildContext context, GoRouterState state) => const VaultPage(),
+      ),
+    ],
+  );
+});
