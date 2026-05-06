@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-
+import '../../../core/widgets/theme_mode_menu_button.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -10,12 +10,16 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Home'),
+        actions: const <Widget>[ThemeModeMenuButton()],
+      ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
+            children: <Widget>[
               // Logo
               Container(
                 width: 120,
@@ -198,7 +202,7 @@ class HomePage extends ConsumerWidget {
                     const SizedBox(height: 12),
                     TextField(
                       decoration: InputDecoration(
-                        hintText: 'Match words...',
+                        hintText: 'Start word match game...',
                         prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -215,15 +219,11 @@ class HomePage extends ConsumerWidget {
                   ],
                 ),
               ),
-              
-              const Spacer(),
-              
-              // Bottom Navigation
-              _buildBottomNavigation(context, ref),
             ],
           ),
         ),
       ),
+      bottomNavigationBar: _buildBottomNavigation(context, ref),
     );
   }
 
@@ -250,38 +250,49 @@ class HomePage extends ConsumerWidget {
   }
 
   Widget _buildBottomNavigation(BuildContext context, WidgetRef ref) {
-    return Container(
-      height: 70,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 15,
-            offset: const Offset(0, -5),
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 15,
+                offset: const Offset(0, -5),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildNavItem(
-            icon: Icons.library_books,
-            label: 'Shelf',
-            onTap: () => context.go('/shelf'),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavItem(
+                icon: Icons.library_books,
+                label: 'Shelf',
+                onTap: () => context.go('/shelf'),
+              ),
+              _buildNavItem(
+                icon: Icons.library_books,
+                label: 'Vault',
+                onTap: () => context.go('/vault'),
+              ),
+              _buildNavItem(
+                icon: Icons.menu_book,
+                label: 'Reader',
+                onTap: () => context.go('/reader'),
+              ),
+              _buildNavItem(
+                icon: Icons.extension,
+                label: 'Games',
+                onTap: () => context.go('/games'),
+              ),
+            ],
           ),
-          _buildNavItem(
-            icon: Icons.library_books,
-            label: 'Vault',
-            onTap: () => context.go('/vault'),
-          ),
-          _buildNavItem(
-            icon: Icons.menu_book,
-            label: 'Reader',
-            onTap: () => context.go('/reader'),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -291,29 +302,31 @@ class HomePage extends ConsumerWidget {
     required String label,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: Colors.grey.shade600,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
                 color: Colors.grey.shade600,
-                fontWeight: FontWeight.w500,
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

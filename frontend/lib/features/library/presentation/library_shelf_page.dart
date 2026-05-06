@@ -290,6 +290,11 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
             label: 'Reader',
             onTap: () => context.go('/reader'),
           ),
+          _buildNavItem(
+            icon: Icons.extension,
+            label: 'Games',
+            onTap: () => context.go('/games'),
+          ),
         ],
       ),
     );
@@ -301,29 +306,31 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
     required VoidCallback onTap,
     bool isActive = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 24,
-              color: isActive ? Colors.green.shade600 : Colors.grey.shade600,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 20,
                 color: isActive ? Colors.green.shade600 : Colors.grey.shade600,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               ),
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isActive ? Colors.green.shade600 : Colors.grey.shade600,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
