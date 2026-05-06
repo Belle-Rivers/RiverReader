@@ -23,3 +23,20 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
+  # fonts:
+  #   - family: Newsreader
+  #     fonts:
+  #       - asset: assets/fonts/Newsreader-Regular.ttf
+  #       - asset: assets/fonts/Newsreader-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Newsreader-SemiBold.ttf
+  #         weight: 600
+  #   - family: PlusJakartaSans
+  #     fonts:
+  #       - asset: assets/fonts/PlusJakartaSans-Regular.ttf
+  #       - asset: assets/fonts/PlusJakartaSans-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
+  #         weight: 600

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/home/presentation/home_page.dart';
 import '../../features/library/presentation/library_shelf_page.dart';
 import '../../features/reader/presentation/reader_page.dart';
 import '../../features/vault/presentation/vault_page.dart';
@@ -12,6 +13,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
+        builder: (BuildContext context, GoRouterState state) => const HomePage(),
+      ),
+      GoRoute(
+        path: '/shelf',
         builder: (BuildContext context, GoRouterState state) => const LibraryShelfPage(),
       ),
       GoRoute(

@@ -17,16 +17,12 @@ class ThemeModeMenuButton extends ConsumerWidget {
       },
       itemBuilder: (BuildContext context) => const <PopupMenuEntry<AppThemeMode>>[
         PopupMenuItem<AppThemeMode>(
-          value: AppThemeMode.parchment,
-          child: Text('Parchment'),
+          value: AppThemeMode.sunlight,
+          child: Text('Sunlight'),
         ),
         PopupMenuItem<AppThemeMode>(
           value: AppThemeMode.midnight,
           child: Text('Midnight'),
-        ),
-        PopupMenuItem<AppThemeMode>(
-          value: AppThemeMode.ink,
-          child: Text('Ink'),
         ),
       ],
       icon: const Icon(Icons.palette_outlined),
