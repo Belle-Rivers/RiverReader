@@ -1,5 +1,8 @@
 # River Reader
 
+Check screenshots folder for the images taking when running frontend in iOS simulator
+
+
 **River Reader** is a Flutter-based EPUB reader application designed with a unique "Silent Flow" capture system. It acts as a premium reading experience combined with a sophisticated language learning and vocabulary restoration game.
 
 ## Project Architecture
