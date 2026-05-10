@@ -1,0 +1,103 @@
+# Root .gitignore for RiverReader project
+
+# OS related
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE related
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.project
+.settings/
+.classpath
+
+# Flutter/Dart related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+**/.dart_tool/
+**/.flutter-plugins-dependencies
+**/.flutter-plugins
+**/.packages
+**/.pub-cache/
+**/.pub/
+**/build/
+**/coverage/
+**/flutter_run_log.txt
+**/*.flutter-plugins-dependencies*
+
+# Android specific
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+**/android/local.properties
+**/android/key.properties
+**/android/**/*.keystore
+**/android/**/*.jks
+**/android/app/src/main/res/values/googleservices.xml
+**/android/app/google-services.json
+
+# iOS specific
+**/ios/.generated/
+**/ios/Pods/
+**/ios/Runner/GeneratedPluginRegistrant.h
+**/ios/Runner/GeneratedPluginRegistrant.m
+**/ios/DerivedData/
+*.moved-aside
+*.app
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Python related
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+**/.venv/
+**/venv/
+**/ENV/
+**/env/
+**/python/
+**/.python-version
+**/pip-log.txt
+**/pip-delete-this-directory.txt
+**/.mypy_cache/
+**/.pyre/
+**/.pytest_cache/
+**/.ipynb_checkpoints/
+
+# SQLite / Database
+**/*.db
+**/*.db-journal
+**/*.db-shm
+**/*.db-wal
+**/*.sqlite
+**/*.sqlite3
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+**/logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Miscellaneous
+.history/
+node_modules/
+dist/
+out/
+.qodo/
+.cursor/
+# .agents/ is usually kept if it contains project rules, but if it has large temp files you can ignore subfolders.

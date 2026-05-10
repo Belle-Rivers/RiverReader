@@ -6,7 +6,7 @@
 **Document Status:** Final / For Engineering Architecture  
 **Document Version:** 1.0.4 (MVP Scale)  
 **Author:** Senior Product Specialist (CPO Level)  
-**Primary Tech Stack:** Flutter (Cross-Platform) / SQLite / Epub.js Integration  
+**Primary Tech Stack:** Flutter (Frontend) / FastAPI (Backend API) / SQLite / Epub.js Integration  
 
 ---
 
