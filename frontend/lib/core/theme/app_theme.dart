@@ -6,9 +6,9 @@ enum AppThemeMode { sunlight, midnight }
 // Whimsical Scholar Design System Colors
 class AppColors {
   // Sunlight Theme (Light Mode)
-  static const Color surface = Color(0xFFFEFADB);
+  static const Color surface = Color(0xFFFFFBDC);
   static const Color surfaceDim = Color(0xFFDFDBBD);
-  static const Color surfaceBright = Color(0xFFFEFADB);
+  static const Color surfaceBright = Color(0xFFFFFBDC);
   static const Color surfaceContainerLowest = Color(0xFFFFFFFF);
   static const Color surfaceContainerLow = Color(0xFFF9F5D6);
   static const Color surfaceContainer = Color(0xFFF3EFD0);
@@ -20,24 +20,24 @@ class AppColors {
   static const Color inverseOnSurface = Color(0xFFF6F2D3);
   static const Color outline = Color(0xFF6E7A74);
   static const Color outlineVariant = Color(0xFFBDC9C2);
-  static const Color surfaceTint = Color(0xFF006C52);
+  static const Color surfaceTint = Color(0xFF7FE1BE);
   
   // Primary Colors
-  static const Color primary = Color(0xFF006C52);
-  static const Color onPrimary = Color(0xFFFFFFFF);
+  static const Color primary = Color(0xFF7FE1BE);
+  static const Color onPrimary = Color(0xFF00644C);
   static const Color primaryContainer = Color(0xFF7FE1BE);
   static const Color onPrimaryContainer = Color(0xFF00644C);
   static const Color inversePrimary = Color(0xFF77D9B6);
   
   // Secondary Colors
-  static const Color secondary = Color(0xFF635499);
-  static const Color onSecondary = Color(0xFFFFFFFF);
+  static const Color secondary = Color(0xFFBBAAF6);
+  static const Color onSecondary = Color(0xFF2A1A5E);
   static const Color secondaryContainer = Color(0xFFC2B1FD);
   static const Color onSecondaryContainer = Color(0xFF4F4084);
   
   // Tertiary Colors
-  static const Color tertiary = Color(0xFF715C00);
-  static const Color onTertiary = Color(0xFFFFFFFF);
+  static const Color tertiary = Color(0xFFF4D569);
+  static const Color onTertiary = Color(0xFF4A3C00);
   static const Color tertiaryContainer = Color(0xFFEBCD62);
   static const Color onTertiaryContainer = Color(0xFF6A5600);
   
@@ -48,7 +48,7 @@ class AppColors {
   static const Color onErrorContainer = Color(0xFF93000A);
   
   // Background Colors
-  static const Color background = Color(0xFFFEFADB);
+  static const Color background = Color(0xFFFFFBDC);
   static const Color onBackground = Color(0xFF1D1C0A);
   static const Color surfaceVariant = Color(0xFFE7E4C5);
   
@@ -113,11 +113,15 @@ class AppThemeState {
         centerTitle: true,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surfaceContainerLow,
+        color: AppColors.surface,
         elevation: 2,
         shadowColor: AppColors.primary.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: const Color(0xFFE3BDBD).withValues(alpha: 0.3),
+            width: 1,
+          ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -127,7 +131,7 @@ class AppThemeState {
           elevation: 4,
           shadowColor: AppColors.primary.withValues(alpha: 0.3),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
         ),
@@ -136,11 +140,11 @@ class AppThemeState {
         filled: true,
         fillColor: AppColors.surfaceContainerLow,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.outline),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(color: AppColors.primary, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
