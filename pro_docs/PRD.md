@@ -143,7 +143,13 @@ CREATE TABLE ghost_highlights (
 ### 4.2 State Management
 * **Provider/Riverpod (Flutter):** To manage the "Reading Theme" globally and the "Highlight Stream" which triggers haptics and DB writes asynchronously to ensure zero lag in the UI thread.
 
-### 4.3 Performance Benchmarks
+### 4.3 User Profile & Entitlement Metadata
+* **MVP Identity:** Username-only local profile for personalization; password authentication is deferred until multi-user or cloud sync is required.
+* **User-Entered Fields:** Username, optional display name, and optional English level for personalization.
+* **System-Collected Fields:** Device install ID, preferred locale, timezone, subscription status, App Store product ID, App Store original transaction ID, and subscription expiration date.
+* **Entitlement Rule:** Subscription fields are optional at registration and can be updated later after StoreKit/App Store receipt validation.
+
+### 4.4 Performance Benchmarks
 * **Cold Start to Book:** < 1.5 seconds.
 * **Highlight Latency:** < 50ms (Capture must feel "instant").
 * **Search Speed:** < 100ms for 1,000+ words.

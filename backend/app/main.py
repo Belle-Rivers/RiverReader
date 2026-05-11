@@ -3,12 +3,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health_router, root_router, version_router
+from app.api import health_router, root_router, user_router, version_router
+from app.db import init_db
 from app.settings import get_settings
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    init_db()
     yield
 
 
@@ -21,6 +23,7 @@ def create_app() -> FastAPI:
     )
     application.include_router(root_router)
     application.include_router(health_router)
+    application.include_router(user_router, prefix=settings.api_v1_prefix)
     application.include_router(version_router, prefix=settings.api_v1_prefix)
     return application
 

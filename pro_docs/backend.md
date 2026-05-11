@@ -42,10 +42,32 @@ For MVP, use a lightweight local profile instead of full authentication.
 
 ### MVP profile approach
 
-- User enters a **display name** or username only.
+- User enters a **username** and optional display name.
 - No password required in the first MVP if the app is local/single-user.
-- The backend creates a local `user_profile` record.
+- The backend creates a local `user_profiles` record.
 - This profile controls personalization: greeting, reading stats, last opened book, Vault count, streak/progress.
+
+### User data collected by the backend
+
+Some user fields are entered manually, while others are collected by the app or purchase provider.
+
+User-entered MVP fields:
+
+- `username`
+- `display_name`
+- optional `learning_level` (`B1`, `B2`, etc.) if onboarding asks for it
+
+System-collected MVP fields:
+
+- `device_install_id` for identifying the local install without requiring login.
+- `preferred_locale` for language/formatting defaults.
+- `timezone` for streaks, reading history, and daily review scheduling.
+- `subscription_status` such as `free`, `trial`, `active`, `expired`, or `cancelled`.
+- `app_store_product_id` for the selected Apple/Google subscription product.
+- `app_store_original_transaction_id` for Apple's stable subscription identity.
+- `subscription_expires_at` for entitlement checks.
+
+These fields should be optional at registration because the frontend may learn them at different moments. For example, the profile can be created with only a username, then patched later when StoreKit returns subscription data.
 
 ### Optional password later
 
@@ -382,7 +404,7 @@ Cost controls:
 Core tables:
 
 - `user_profiles`
-  - `id`, `username`, `display_name`, `created_at`, `updated_at`
+  - `id`, `username`, `display_name`, `device_install_id`, `preferred_locale`, `timezone`, `learning_level`, `subscription_status`, `app_store_product_id`, `app_store_original_transaction_id`, `subscription_expires_at`, `created_at`, `updated_at`
 
 - `books`
   - `id`, `user_id`, `title`, `author`, `language`, `file_hash`, `cover_ref`, `created_at`, `updated_at`, `is_deleted`
@@ -423,10 +445,12 @@ All product endpoints are versioned under `/v1`.
 
 ### Profile
 
-- `GET /v1/me`
-- `POST /v1/me`
-- `PATCH /v1/me`
-- `GET /v1/me/home`
+- `POST /v1/users/register`
+- `GET /v1/users`
+- `GET /v1/users/{user_id}`
+- `PATCH /v1/users/{user_id}`
+- `DELETE /v1/users/{user_id}`
+- `GET /v1/me/home` (later, when active-user/session handling exists)
 
 ### Books and progress
 
@@ -543,4 +567,3 @@ Service modules to expect:
 - No permanent visible highlights in the reader.
 - No exercises forced during reading.
 - No frontend implementation changes in this documentation step.
-
