@@ -3,7 +3,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health_router, root_router, user_router, version_router
+from app.api import (
+    ai_router,
+    book_router,
+    dictionary_router,
+    game_router,
+    health_router,
+    highlight_router,
+    review_router,
+    root_router,
+    user_router,
+    vault_router,
+    version_router,
+)
 from app.db import init_db
 from app.settings import get_settings
 
@@ -23,7 +35,14 @@ def create_app() -> FastAPI:
     )
     application.include_router(root_router)
     application.include_router(health_router)
+    application.include_router(ai_router, prefix=settings.api_v1_prefix)
+    application.include_router(book_router, prefix=settings.api_v1_prefix)
+    application.include_router(dictionary_router, prefix=settings.api_v1_prefix)
+    application.include_router(game_router, prefix=settings.api_v1_prefix)
+    application.include_router(highlight_router, prefix=settings.api_v1_prefix)
+    application.include_router(review_router, prefix=settings.api_v1_prefix)
     application.include_router(user_router, prefix=settings.api_v1_prefix)
+    application.include_router(vault_router, prefix=settings.api_v1_prefix)
     application.include_router(version_router, prefix=settings.api_v1_prefix)
     return application
 

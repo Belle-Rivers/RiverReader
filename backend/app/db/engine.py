@@ -2,7 +2,17 @@ from pathlib import Path
 
 from sqlmodel import SQLModel, create_engine
 
-from app.models import UserProfile  # noqa: F401 — register metadata
+from app.models import (  # noqa: F401 — register metadata
+    Book,
+    BookChapter,
+    DictionaryEntry,
+    Highlight,
+    LlmCache,
+    ReadingProgress,
+    ReviewEvent,
+    SrsItem,
+    UserProfile,
+)
 
 _ENGINE = None
 

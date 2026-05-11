@@ -3,12 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/widgets/theme_mode_menu_button.dart';
+import '../../auth/application/current_user_provider.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final String? activeUserId = ref.watch(sessionUserIdProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Home'),
@@ -43,6 +45,36 @@ class HomePage extends ConsumerWidget {
                   ),
                 ),
               ),
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => context.go('/register'),
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text('Create Profile'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.go('/register?mode=signin'),
+                      icon: const Icon(Icons.login),
+                      label: const Text('Sign In'),
+                    ),
+                  ),
+                ],
+              ),
+              if (activeUserId != null) ...<Widget>[
+                const SizedBox(height: 12),
+                Text(
+                  'Active profile id: $activeUserId',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
+                      ),
+                ),
+              ],
+              const SizedBox(height: 24),
               
               // Resume Reading Section
               Container(

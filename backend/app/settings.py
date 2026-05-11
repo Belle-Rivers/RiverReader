@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     app_title: str = "River Reader"
     app_version: str = "0.1.0"
     api_v1_prefix: str = "/v1"
+    ai_enabled: bool = False
 
 
 @lru_cache
