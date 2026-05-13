@@ -38,6 +38,7 @@ def init_db() -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
     _ensure_user_profile_columns(engine)
+    _ensure_dictionary_columns(engine)
 
 
 def _ensure_user_profile_columns(engine) -> None:
@@ -60,4 +61,26 @@ def _ensure_user_profile_columns(engine) -> None:
             if column_name not in existing:
                 connection.exec_driver_sql(
                     f"ALTER TABLE user_profiles ADD COLUMN {column_name} {column_type}"
+                )
+
+
+def _ensure_dictionary_columns(engine) -> None:
+    """Add columns to dictionary_entries that were introduced after the initial schema.
+
+    example_sentence: a standalone sentence using the word, different from the
+    context_sentence captured during reading. Used in the cloze game so the user
+    is tested on their knowledge of the word in a new context.
+    """
+    columns = {
+        "example_sentence": "TEXT",
+    }
+    with engine.begin() as connection:
+        existing = {
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(dictionary_entries)").all()
+        }
+        for column_name, column_type in columns.items():
+            if column_name not in existing:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE dictionary_entries ADD COLUMN {column_name} {column_type}"
                 )

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../application/current_user_provider.dart';
 import '../data/registration_api.dart';
 
@@ -20,13 +22,13 @@ class RegisterPage extends ConsumerStatefulWidget {
 }
 
 class _RegisterPageState extends ConsumerState<RegisterPage> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _usernameController = TextEditingController();
-  final TextEditingController _displayNameController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+  final _displayNameController = TextEditingController();
+  final _passwordController = TextEditingController();
   late RegisterMode _mode;
   bool _isSubmitting = false;
   String? _errorMessage;
-  RegistrationResponse? _success;
 
   @override
   void initState() {
@@ -36,260 +38,107 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _displayNameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  void _completeSession(RegistrationResponse response) {
-    ref.read(sessionUserIdProvider.notifier).setUserId(response.id);
-    if (!mounted) {
-      return;
-    }
-    context.go('/');
-  }
-
-  Future<void> _submitCreate() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-      _success = null;
-    });
-    try {
-      final RegistrationApi api = ref.read(registrationApiProvider);
-      final RegistrationResponse response = await api.register(
-        RegistrationRequest(
-          username: _usernameController.text.trim(),
-          displayName: _displayNameController.text.trim().isEmpty
-              ? null
-              : _displayNameController.text.trim(),
-          preferredLocale: Localizations.localeOf(context).toLanguageTag(),
-          timezone: DateTime.now().timeZoneName,
-        ),
-      );
-      HapticFeedback.mediumImpact();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _success = response;
-      });
-      _completeSession(response);
-    } on RegistrationApiException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
-    } catch (_) {
-      setState(() {
-        _errorMessage = 'Unexpected error while registering';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _submitSignIn() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    setState(() {
-      _isSubmitting = true;
-      _errorMessage = null;
-      _success = null;
-    });
-    try {
-      final RegistrationApi api = ref.read(registrationApiProvider);
-      final RegistrationResponse response =
-          await api.findProfileByUsername(_usernameController.text.trim());
-      HapticFeedback.mediumImpact();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _success = response;
-      });
-      _completeSession(response);
-    } on RegistrationApiException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
-    } catch (_) {
-      setState(() {
-        _errorMessage = 'Unexpected error while signing in';
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
-      }
-    }
-  }
-
   Future<void> _submit() async {
-    if (_mode == RegisterMode.create) {
-      await _submitCreate();
-    } else {
-      await _submitSignIn();
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = null;
+    });
+    final preferredLocale = Localizations.localeOf(context).toLanguageTag();
+    try {
+      final api = ref.read(registrationApiProvider);
+      final response = _mode == RegisterMode.create
+          ? await api.register(RegistrationRequest(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+              displayName: _displayNameController.text.trim().isEmpty ? null : _displayNameController.text.trim(),
+              preferredLocale: preferredLocale,
+              timezone: DateTime.now().timeZoneName,
+            ))
+          : await api.login(LoginRequest(email: _emailController.text.trim(), password: _passwordController.text));
+      ref.read(sessionUserIdProvider.notifier).setUserId(response.id);
+      HapticFeedback.mediumImpact();
+      if (mounted) context.go('/');
+    } on RegistrationApiException catch (e) {
+      setState(() => _errorMessage = e.message);
+    } catch (_) {
+      setState(() => _errorMessage = 'Unexpected error');
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    final ColorScheme colors = theme.colorScheme;
-    final String title = _mode == RegisterMode.create ? 'Create Profile' : 'Sign In';
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final bg = dark ? const Color(0xFF040B24) : const Color(0xFFF1F0CC);
+    final panel = dark ? const Color(0xFF1C2641) : const Color(0xFFEDF0DC);
+    final text = dark ? const Color(0xFFF9F4DA) : const Color(0xFF1D1B16);
+
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+      body: Container(
+        color: bg,
+        child: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          _mode == RegisterMode.create
-                              ? 'Welcome to River Reader'
-                              : 'Welcome back',
-                          style: theme.textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _mode == RegisterMode.create
-                              ? 'Start by creating your local profile.'
-                              : 'Enter the username for an existing profile on this device.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        SegmentedButton<RegisterMode>(
-                          segments: const <ButtonSegment<RegisterMode>>[
-                            ButtonSegment<RegisterMode>(
-                              value: RegisterMode.create,
-                              label: Text('New profile'),
-                              icon: Icon(Icons.person_add_alt_1),
-                            ),
-                            ButtonSegment<RegisterMode>(
-                              value: RegisterMode.signIn,
-                              label: Text('Sign in'),
-                              icon: Icon(Icons.login),
-                            ),
-                          ],
-                          selected: <RegisterMode>{_mode},
-                          onSelectionChanged: (Set<RegisterMode> selection) {
-                            setState(() {
-                              _mode = selection.first;
-                              _errorMessage = null;
-                              _success = null;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 24),
-                        TextFormField(
-                          controller: _usernameController,
-                          textInputAction: _mode == RegisterMode.create
-                              ? TextInputAction.next
-                              : TextInputAction.done,
-                          decoration: const InputDecoration(
-                            labelText: 'Username',
-                            hintText: 'reader_rony',
-                          ),
-                          validator: (String? value) {
-                            final String trimmed = value?.trim() ?? '';
-                            if (trimmed.isEmpty) {
-                              return 'Username is required';
-                            }
-                            if (trimmed.length > 64) {
-                              return 'Maximum 64 characters';
-                            }
-                            return null;
-                          },
-                          onFieldSubmitted: (_) {
-                            if (_isSubmitting) {
-                              return;
-                            }
-                            if (_mode == RegisterMode.signIn) {
-                              _submit();
-                            }
-                          },
-                        ),
-                        if (_mode == RegisterMode.create) ...<Widget>[
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _displayNameController,
-                            textInputAction: TextInputAction.done,
-                            decoration: const InputDecoration(
-                              labelText: 'Display name (optional)',
-                              hintText: 'Rony',
-                            ),
-                            onFieldSubmitted: (_) {
-                              if (!_isSubmitting) {
-                                _submit();
-                              }
-                            },
-                          ),
-                        ],
-                        const SizedBox(height: 20),
-                        if (_errorMessage != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Text(
-                              _errorMessage!,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colors.error,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        if (_success != null)
-                          Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: colors.primaryContainer,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              _mode == RegisterMode.create
-                                  ? 'Created ${_success!.username} • id: ${_success!.id}'
-                                  : 'Signed in as ${_success!.username}',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: colors.onPrimaryContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isSubmitting ? null : _submit,
-                            child: Text(
-                              _isSubmitting
-                                  ? (_mode == RegisterMode.create ? 'Creating...' : 'Signing in...')
-                                  : (_mode == RegisterMode.create ? 'Create Profile' : 'Sign In'),
-                            ),
-                          ),
-                        ),
-                      ],
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(28),
+                child: Form(
+                  key: _formKey,
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        onPressed: () {
+                          ref.read(appThemeNotifierProvider.notifier).setMode(
+                                dark ? AppThemeMode.sunlight : AppThemeMode.midnight,
+                              );
+                        },
+                        icon: Icon(dark ? Icons.wb_sunny_outlined : Icons.nightlight_round, color: text),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Center(child: Image.asset('assets/images/RiverReader_logo.png', width: 210, height: 190, fit: BoxFit.cover)),
+                    const SizedBox(height: 2),
+                    Center(
+                      child: Text(
+                        'read in flow.',
+                        style: RiverFonts.handwritten(size: 30, color: AppColors.mint),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(28)),
+                      child: Row(children: [
+                        _seg('Sign in', _mode == RegisterMode.signIn, () => setState(() => _mode = RegisterMode.signIn), panel, text),
+                        _seg('Register', _mode == RegisterMode.create, () => setState(() => _mode = RegisterMode.create), panel, text),
+                      ]),
+                    ),
+                    const SizedBox(height: 24),
+                    if (_mode == RegisterMode.create) ...[
+                      _label('Name', text),
+                      _field(_displayNameController, 'Jane Scholar'),
+                      const SizedBox(height: 16),
+                    ],
+                    _label('Email', text),
+                    _field(_emailController, 'you@scholar.com'),
+                    const SizedBox(height: 16),
+                    _label('Password', text),
+                    _field(_passwordController, _mode == RegisterMode.create ? 'At least 8 characters' : '••••••••', obscureText: true, isPassword: true),
+                    if (_errorMessage != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent))),
+                    const SizedBox(height: 18),
+                    ElevatedButton(onPressed: _isSubmitting ? null : _submit, child: Text(_mode == RegisterMode.create ? 'Create account' : 'Sign in')),
+                    if (_mode == RegisterMode.signIn) Padding(padding: const EdgeInsets.only(top: 16), child: Text('Forgot password?', textAlign: TextAlign.center, style: TextStyle(color: text.withValues(alpha: .7)))),
+                    const SizedBox(height: 28),
+                    Text('By continuing you agree to the gentle scholar\'s code. Skip', textAlign: TextAlign.center, style: TextStyle(color: text.withValues(alpha: .65))),
+                  ]),
                 ),
               ),
             ),
@@ -298,4 +147,41 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       ),
     );
   }
+
+  Widget _seg(String text, bool active, VoidCallback onTap, Color panel, Color fg) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(28),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: active ? Colors.black.withValues(alpha: .28) : Colors.transparent,
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(color: active ? Colors.transparent : Colors.white.withValues(alpha: .1)),
+          ),
+          child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: fg.withValues(alpha: active ? 1 : .55), fontSize: 18)),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String t, Color color) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(t, style: GoogleFonts.newsreader(fontSize: 22, color: color, fontWeight: FontWeight.w700)),
+      );
+
+  Widget _field(TextEditingController? c, String h, {bool obscureText = false, bool isPassword = false}) => TextFormField(
+        controller: c,
+        obscureText: obscureText,
+        validator: c == null
+            ? null
+            : (v) {
+                final val = (v ?? '').trim();
+                if (val.isEmpty) return 'Required';
+                if (isPassword && val.length < 8) return 'Min 8 characters';
+                return null;
+              },
+        decoration: InputDecoration(hintText: h),
+      );
 }

@@ -28,8 +28,8 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         yield test_client
 
 
-def _register(client: TestClient, username: str = "reader") -> str:
-    response = client.post("/v1/users/register", json={"username": username})
+def _register(client: TestClient, email: str = "reader") -> str:
+    response = client.post("/v1/users/register", json={"email": email})
     assert response.status_code == 201
     return response.json()["id"]
 
@@ -72,8 +72,12 @@ def _highlight(client: TestClient, user_id: str, book_id: str) -> dict:
 def test_profile_crud_regression(client: TestClient) -> None:
     user_id = _register(client, "Reader")
 
-    duplicate = client.post("/v1/users/register", json={"username": "reader"})
+    duplicate = client.post("/v1/users/register", json={"email": "reader"})
     assert duplicate.status_code == 409
+
+    by_email = client.get("/v1/users/by-email/READER")
+    assert by_email.status_code == 200
+    assert by_email.json()["id"] == user_id
 
     patch = client.patch(
         f"/v1/users/{user_id}",
@@ -85,6 +89,46 @@ def test_profile_crud_regression(client: TestClient) -> None:
 
     delete = client.delete(f"/v1/users/{user_id}")
     assert delete.status_code == 204
+
+
+def test_home_summary_and_cors(client: TestClient) -> None:
+    user_id = _register(client)
+    book = _book(client, user_id)
+    _highlight(client, user_id, book["id"])
+
+    progress = client.put(
+        f"/v1/books/{book['id']}/progress",
+        json={
+            "user_id": user_id,
+            "chapter_index": 0,
+            "chapter_title": "Source",
+            "cfi": "epubcfi(/6/2[source])",
+            "progress_percent": 12.25,
+        },
+    )
+    assert progress.status_code == 200
+
+    home = client.get(f"/v1/me/home?user_id={user_id}")
+    assert home.status_code == 200
+    payload = home.json()
+    assert payload["user"]["id"] == user_id
+    assert payload["stats"] == {
+        "books_count": 1,
+        "vault_count": 1,
+        "due_reviews_count": 1,
+    }
+    assert payload["last_opened_book"]["id"] == book["id"]
+    assert payload["last_progress"]["progress_percent"] == 12.25
+
+    preflight = client.options(
+        "/v1/users/register",
+        headers={
+            "Origin": "http://localhost:8080",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert preflight.status_code == 200
+    assert preflight.headers["access-control-allow-origin"] == "http://localhost:8080"
 
 
 def test_book_progress_and_soft_delete_flow(client: TestClient) -> None:

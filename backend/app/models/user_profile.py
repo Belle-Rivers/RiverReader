@@ -10,8 +10,9 @@ class UserProfile(SQLModel, table=True):
     __tablename__ = "user_profiles"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    username: str = Field(max_length=64)
-    username_normalized: str = Field(max_length=64, unique=True, index=True)
+    email: str = Field(max_length=64)
+    email_normalized: str = Field(max_length=64, unique=True, index=True)
+    hashed_password: str | None = Field(default=None, max_length=256)
     display_name: str | None = Field(default=None, max_length=128)
     device_install_id: str | None = Field(default=None, max_length=128, index=True)
     preferred_locale: str | None = Field(default=None, max_length=16)

@@ -8,7 +8,7 @@ Since we are prioritizing "Silent Flow," the UI will focus on minimizing frictio
 *Goal: Establish the "Scholar’s Palette" and the Library shell to support backend file ingestion.*
 
 - [ ] **Design Token Implementation:**
-    - [ ] Define `ThemeData` for **Parchment**, **Midnight**, and **Ink**.
+    - [ ] Define `ThemeData` for **Sunlight** and **Midnight**.
     - [ ] Set up Typography scales using `Merriweather` (Body) and `Inter` (UI).
 - [ ] **Library Shelf (Page):**
     - [ ] `SliverGrid` layout for book covers with a "Staggered Entrance" animation.

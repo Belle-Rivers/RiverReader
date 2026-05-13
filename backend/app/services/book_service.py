@@ -3,7 +3,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.models import Book, BookChapter
+from app.models import Book, BookChapter, ReadingProgress
 from app.schemas import BookChapterCreate, BookCreate, BookRead, BookUpdate
 
 
@@ -21,8 +21,15 @@ def _chapters_for_book(session: Session, book_id: UUID) -> list[BookChapter]:
 
 
 def _read_book(session: Session, book: Book) -> BookRead:
+    progress_statement = select(ReadingProgress).where(ReadingProgress.book_id == book.id)
+    progress = session.exec(progress_statement).first()
+    
     return BookRead.model_validate(book).model_copy(
-        update={"chapters": _chapters_for_book(session, book.id)}
+        update={
+            "chapters": _chapters_for_book(session, book.id),
+            "progress_percent": progress.progress_percent if progress else None,
+            "last_read_at": progress.last_read_at if progress else None,
+        }
     )
 
 
@@ -105,6 +112,23 @@ def get_active_book_model(session: Session, book_id: UUID, user_id: UUID) -> Boo
     if book is None or book.is_deleted or book.user_id != user_id:
         return None
     return book
+
+
+def get_book_chapter(
+    session: Session,
+    *,
+    book_id: UUID,
+    user_id: UUID,
+    chapter_index: int,
+) -> BookChapter | None:
+    book = get_active_book_model(session, book_id, user_id)
+    if book is None:
+        return None
+    statement = select(BookChapter).where(
+        BookChapter.book_id == book_id,
+        BookChapter.chapter_index == chapter_index,
+    )
+    return session.exec(statement).first()
 
 
 def update_book(

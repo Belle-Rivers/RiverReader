@@ -2,365 +2,160 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../core/widgets/theme_mode_menu_button.dart';
 import '../../auth/application/current_user_provider.dart';
+import '../../library/controllers/library_shelf_controller.dart';
+
+import '../../../core/theme/app_theme.dart';
+import '../../../core/widgets/river_ui.dart';
 
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final String? activeUserId = ref.watch(sessionUserIdProvider);
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        actions: const <Widget>[ThemeModeMenuButton()],
+    final theme = Theme.of(context);
+    final userId = ref.watch(sessionUserIdProvider);
+    return RiverScaffold(
+      title: 'River Reader',
+      subtitle: 'Welcome back, scholar',
+      showLogo: true,
+      tab: RiverTab.home,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.auto_awesome, color: AppColors.mint, size: 30),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: () => context.go('/settings'),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-              // Logo
-              Container(
-                width: 120,
-                height: 120,
-                margin: const EdgeInsets.only(top: 40, bottom: 40),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: Image.asset(
-                    'assets/images/RiverReader_logo.png',
-                    fit: BoxFit.cover,
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          Text('Pick up where you left off', style: RiverFonts.handwritten(size: 28, color: AppColors.mint)),
+          const SizedBox(height: 6),
+          if (userId == null) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => context.go('/register?mode=signin'),
+                    child: const Text('Sign in'),
                   ),
                 ),
-              ),
-              Row(
-                children: <Widget>[
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => context.go('/register'),
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('Create Profile'),
-                    ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => context.go('/register'),
+                    child: const Text('Register'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => context.go('/register?mode=signin'),
-                      icon: const Icon(Icons.login),
-                      label: const Text('Sign In'),
-                    ),
-                  ),
-                ],
-              ),
-              if (activeUserId != null) ...<Widget>[
-                const SizedBox(height: 12),
-                Text(
-                  'Active profile id: $activeUserId',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey.shade600,
-                      ),
                 ),
               ],
-              const SizedBox(height: 24),
-              
-              // Resume Reading Section
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 32),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.auto_stories, color: Colors.green.shade600, size: 24),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Resume Reading',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (userId != null) ...[
+            Text('Continue reading', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 48/2)),
+            const SizedBox(height: 12),
+            Consumer(builder: (context, ref, _) {
+              final shelfState = ref.watch(libraryShelfControllerProvider);
+              return shelfState.when(
+                data: (books) {
+                  if (books.isEmpty) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Text('No books in your shelf yet.'),
+                    );
+                  }
+                  final lastBook = books.last;
+                  return InkWell(
+                    onTap: () => context.push('/reader/${lastBook.id}', extra: lastBook),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Colors.green.shade400, Colors.green.shade300],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.green.shade300.withValues(alpha: 0.3),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      child: Row(
                         children: [
-                          Icon(Icons.book, color: Colors.white, size: 20),
-                          SizedBox(width: 8),
-                          Text(
-                            'Last Book Read',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
+                          Container(
+                            width: 60,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF5A4432), Color(0xFF32261E)],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(lastBook.title, style: theme.textTheme.titleMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+                                const SizedBox(height: 4),
+                                Text('${(lastBook.progressPercent ?? 0).toStringAsFixed(1)}% · ${lastBook.author ?? 'Unknown'}', style: theme.textTheme.bodyMedium),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios, size: 16),
                         ],
                       ),
                     ),
-                  ],
+                  );
+                },
+                loading: () => const CircularProgressIndicator(),
+                error: (e, _) => Text('Error: $e'),
+              );
+            }),
+          ],
+          const SizedBox(height: 20),
+          Text('Fresh from the river', style: RiverFonts.handwritten(size: 28, color: AppColors.mint)),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text('Latest captures', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 42/2)),
+            TextButton(
+              onPressed: () => context.go('/vault'),
+              child: Text('See all', style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.mint)),
+            ),
+          ]),
+          const SizedBox(height: 8),
+          if (userId != null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Text('No words in vault yet.'),
+            )
+          else
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Text('Sign in to view your vault.'),
+            ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => context.go('/games'),
+            borderRadius: BorderRadius.circular(22),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(color: AppColors.lavender, borderRadius: BorderRadius.circular(22)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Restoration time', style: RiverFonts.handwritten(size: 28, color: Colors.black87)),
+                Text("Play with today's words", style: theme.textTheme.headlineMedium?.copyWith(fontSize: 46/2)),
+                const SizedBox(height: 6),
+                Text('Cloze tests and matches built from your own captures.', style: theme.textTheme.bodyLarge?.copyWith(color: Colors.black87)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(color: Colors.black.withValues(alpha: .08), borderRadius: BorderRadius.circular(28)),
+                  child: Text('Start a round', style: theme.textTheme.labelLarge),
                 ),
-              ),
-              
-              // Remember These Section
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 32),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.lightbulb, color: Colors.amber.shade600, size: 24),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Remember These?',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        _buildVaultWord('Serendipity'),
-                        const SizedBox(width: 8),
-                        _buildVaultWord('Ephemeral'),
-                        const SizedBox(width: 8),
-                        _buildVaultWord('Mellifluous'),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Need to Tweak Section
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(bottom: 32),
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.psychology, color: Colors.purple.shade600, size: 24),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Need to Tweak?',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey.shade800,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      decoration: InputDecoration(
-                        hintText: 'Start word match game...',
-                        prefixIcon: Icon(Icons.search, color: Colors.grey.shade400),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide(color: Colors.green.shade400, width: 2),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+              ]),
+            ),
           ),
-        ),
-      ),
-      bottomNavigationBar: _buildBottomNavigation(context, ref),
-    );
-  }
-
-  Widget _buildVaultWord(String word) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        decoration: BoxDecoration(
-          color: Colors.purple.shade50,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.purple.shade200),
-        ),
-        child: Text(
-          word,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: Colors.purple.shade700,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigation(BuildContext context, WidgetRef ref) {
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        child: Container(
-          height: 64,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 15,
-                offset: const Offset(0, -5),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildNavItem(
-                icon: Icons.library_books,
-                label: 'Shelf',
-                onTap: () => context.go('/shelf'),
-              ),
-              _buildNavItem(
-                icon: Icons.library_books,
-                label: 'Vault',
-                onTap: () => context.go('/vault'),
-              ),
-              _buildNavItem(
-                icon: Icons.menu_book,
-                label: 'Reader',
-                onTap: () => context.go('/reader'),
-              ),
-              _buildNavItem(
-                icon: Icons.extension,
-                label: 'Games',
-                onTap: () => context.go('/games'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: Colors.grey.shade600,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
+        ],
       ),
     );
   }
 }
+

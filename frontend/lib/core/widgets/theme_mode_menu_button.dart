@@ -8,25 +8,15 @@ class ThemeModeMenuButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AppThemeMode currentMode = ref.watch(appThemeNotifierProvider).mode;
+    final currentMode = ref.watch(appThemeNotifierProvider).mode;
     return PopupMenuButton<AppThemeMode>(
       tooltip: 'Theme',
-      initialValue: currentMode,
-      onSelected: (AppThemeMode mode) {
-        ref.read(appThemeNotifierProvider.notifier).setMode(mode);
-      },
-      itemBuilder: (BuildContext context) => const <PopupMenuEntry<AppThemeMode>>[
-        PopupMenuItem<AppThemeMode>(
-          value: AppThemeMode.sunlight,
-          child: Text('Sunlight'),
-        ),
-        PopupMenuItem<AppThemeMode>(
-          value: AppThemeMode.midnight,
-          child: Text('Midnight'),
-        ),
+      onSelected: (mode) => ref.read(appThemeNotifierProvider.notifier).setMode(mode),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: AppThemeMode.sunlight, child: Text('Sunlight')),
+        PopupMenuItem(value: AppThemeMode.midnight, child: Text('Midnight')),
       ],
-      icon: const Icon(Icons.palette_outlined),
+      icon: Icon(currentMode == AppThemeMode.midnight ? Icons.wb_sunny_outlined : Icons.nightlight_round),
     );
   }
 }
-

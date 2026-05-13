@@ -1,3 +1,5 @@
+import hashlib
+import os
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -5,22 +7,37 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
 from app.models import UserProfile
-from app.schemas.profile import UserProfileCreate, UserProfileUpdate
+from app.schemas.profile import UserProfileCreate, UserProfileUpdate, UserLogin
 
 
-def normalize_username(username: str) -> str:
-    return username.strip().lower()
+def normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    return salt.hex() + ":" + pw_hash.hex()
+
+def verify_password(password: str, hashed: str) -> bool:
+    if not hashed or ":" not in hashed:
+        return False
+    salt_hex, hash_hex = hashed.split(":", 1)
+    salt = bytes.fromhex(salt_hex)
+    pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    return pw_hash.hex() == hash_hex
 
 
 def create_user_profile(session: Session, data: UserProfileCreate) -> UserProfile:
-    """Register a new user profile. Raises ValueError if the username is taken."""
-    normalized = normalize_username(data.username)
+    """Register a new user profile. Raises ValueError if the email is taken."""
+    normalized = normalize_email(data.email)
     if not normalized:
-        raise ValueError("username must not be empty")
+        raise ValueError("email must not be empty")
     display = (data.display_name or "").strip() or None
+    hashed = hash_password(data.password) if data.password else None
     profile = UserProfile(
-        username=data.username.strip(),
-        username_normalized=normalized,
+        email=data.email.strip(),
+        email_normalized=normalized,
+        hashed_password=hashed,
         display_name=display,
         device_install_id=data.device_install_id,
         preferred_locale=data.preferred_locale,
@@ -36,7 +53,7 @@ def create_user_profile(session: Session, data: UserProfileCreate) -> UserProfil
         session.commit()
     except IntegrityError:
         session.rollback()
-        raise ValueError("username is already registered") from None
+        raise ValueError("email is already registered") from None
     session.refresh(profile)
     return profile
 
@@ -45,12 +62,20 @@ def get_user_profile_by_id(session: Session, user_id: UUID) -> UserProfile | Non
     return session.get(UserProfile, user_id)
 
 
-def get_user_profile_by_username(session: Session, username: str) -> UserProfile | None:
-    normalized = normalize_username(username)
+def get_user_profile_by_email(session: Session, email: str) -> UserProfile | None:
+    normalized = normalize_email(email)
     if not normalized:
         return None
-    statement = select(UserProfile).where(UserProfile.username_normalized == normalized)
+    statement = select(UserProfile).where(UserProfile.email_normalized == normalized)
     return session.exec(statement).first()
+
+def verify_login(session: Session, data: UserLogin) -> UserProfile | None:
+    profile = get_user_profile_by_email(session, data.email)
+    if not profile or not profile.hashed_password:
+        return None
+    if verify_password(data.password, profile.hashed_password):
+        return profile
+    return None
 
 
 def list_user_profiles(session: Session, *, limit: int = 100, offset: int = 0) -> list[UserProfile]:
@@ -61,7 +86,7 @@ def list_user_profiles(session: Session, *, limit: int = 100, offset: int = 0) -
 
 
 def update_user_profile(session: Session, user_id: UUID, data: UserProfileUpdate) -> UserProfile | None:
-    """Update profile fields. Raises ValueError if the new username is taken."""
+    """Update profile fields. Raises ValueError if the new email is taken."""
     profile = session.get(UserProfile, user_id)
     if profile is None:
         return None
@@ -71,14 +96,14 @@ def update_user_profile(session: Session, user_id: UUID, data: UserProfileUpdate
         if new_display != profile.display_name:
             profile.display_name = new_display
             changed = True
-    if data.username is not None:
-        new_username = data.username.strip()
-        new_normalized = normalize_username(new_username)
+    if data.email is not None:
+        new_email = data.email.strip()
+        new_normalized = normalize_email(new_email)
         if not new_normalized:
-            raise ValueError("username must not be empty")
-        if new_normalized != profile.username_normalized:
-            profile.username = new_username
-            profile.username_normalized = new_normalized
+            raise ValueError("email must not be empty")
+        if new_normalized != profile.email_normalized:
+            profile.email = new_email
+            profile.email_normalized = new_normalized
             changed = True
     for field_name in (
         "device_install_id",
@@ -102,7 +127,7 @@ def update_user_profile(session: Session, user_id: UUID, data: UserProfileUpdate
         session.commit()
     except IntegrityError:
         session.rollback()
-        raise ValueError("username is already registered") from None
+        raise ValueError("email is already registered") from None
     session.refresh(profile)
     return profile
 

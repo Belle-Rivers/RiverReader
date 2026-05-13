@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 
 class RegistrationRequest {
   const RegistrationRequest({
-    required this.username,
+    required this.email,
+    required this.password,
     this.displayName,
     this.deviceInstallId,
     this.preferredLocale,
@@ -12,7 +13,8 @@ class RegistrationRequest {
     this.learningLevel,
   });
 
-  final String username;
+  final String email;
+  final String password;
   final String? displayName;
   final String? deviceInstallId;
   final String? preferredLocale;
@@ -21,7 +23,8 @@ class RegistrationRequest {
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
-      'username': username,
+      'email': email,
+      'password': password,
       'display_name': displayName,
       'device_install_id': deviceInstallId,
       'preferred_locale': preferredLocale,
@@ -34,18 +37,18 @@ class RegistrationRequest {
 class RegistrationResponse {
   const RegistrationResponse({
     required this.id,
-    required this.username,
+    required this.email,
     this.displayName,
   });
 
   final String id;
-  final String username;
+  final String email;
   final String? displayName;
 
   factory RegistrationResponse.fromJson(Map<String, dynamic> json) {
     return RegistrationResponse(
       id: json['id'] as String,
-      username: json['username'] as String,
+      email: json['email'] as String,
       displayName: json['display_name'] as String?,
     );
   }
@@ -110,17 +113,34 @@ class RegistrationApi {
         .toList();
   }
 
-  Future<RegistrationResponse> findProfileByUsername(String username) async {
-    final String normalized = username.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      throw const RegistrationApiException('Username is required');
+  Future<RegistrationResponse> login(LoginRequest request) async {
+    final Uri url = Uri.parse('$_defaultBaseUrl/v1/users/login');
+    final http.Response response = await _client.post(
+      url,
+      headers: <String, String>{'Content-Type': 'application/json'},
+      body: jsonEncode(request.toJson()),
+    );
+    final Map<String, dynamic>? payload = response.body.isEmpty ? null : jsonDecode(response.body);
+    if (response.statusCode == 200 && payload != null) {
+      return RegistrationResponse.fromJson(payload);
     }
-    final List<RegistrationResponse> profiles = await listUserProfiles();
-    for (final RegistrationResponse profile in profiles) {
-      if (profile.username.toLowerCase() == normalized) {
-        return profile;
-      }
-    }
-    throw const RegistrationApiException('No profile found for that username');
+    final Object? detail = payload?['detail'];
+    throw RegistrationApiException(detail is String ? detail : 'Login failed');
   }
+
+  Future<RegistrationResponse> getUserProfile(String id) async {
+    final Uri url = Uri.parse('$_defaultBaseUrl/v1/users/$id');
+    final http.Response response = await _client.get(url);
+    if (response.statusCode == 200) {
+      return RegistrationResponse.fromJson(jsonDecode(response.body));
+    }
+    throw const RegistrationApiException('Failed to get user profile');
+  }
+}
+
+class LoginRequest {
+  const LoginRequest({required this.email, required this.password});
+  final String email;
+  final String password;
+  Map<String, dynamic> toJson() => {'email': email, 'password': password};
 }

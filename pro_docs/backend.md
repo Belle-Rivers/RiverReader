@@ -42,8 +42,8 @@ For MVP, use a lightweight local profile instead of full authentication.
 
 ### MVP profile approach
 
-- User enters a **username** and optional display name.
-- No password required in the first MVP if the app is local/single-user.
+- A `/login` endpoint has been implemented. It finds an existing profile by username.
+- No password required in the first MVP if the app is local/single-user. Password auth deferred to cloud sync phase.
 - The backend creates a local `user_profiles` record.
 - This profile controls personalization: greeting, reading stats, last opened book, Vault count, streak/progress.
 
@@ -143,6 +143,11 @@ Frontend:
 - calculate CFI/location,
 - detect selected word and local text context,
 - send book metadata and events to backend.
+
+Current implementation status:
+
+- ✅ Backend now exposes chapter content extraction endpoint: `GET /v1/books/{book_id}/chapters/{chapter_index}/content`
+- ✅ This is used by frontend `InAppWebView` to provide real DOM text for JS capture during Phase 2
 
 Backend:
 
@@ -268,6 +273,13 @@ Useful endpoints:
 - `GET /v1/vault/search?q=...`
 - `GET /v1/highlights/{highlight_id}`
 - `DELETE /v1/highlights/{highlight_id}`
+- `GET /v1/dictionary/{word}` (used by vault word details)
+
+Current implementation status:
+
+- ✅ Vault filtering by `book_id` is now active in frontend
+- ✅ Vault search query (`q`) is now active in frontend
+- ✅ Vault word tap now surfaces dictionary definition and source context
 
 Use SQLite FTS5 later for fast full-text search across `target_word`, `context_sentence`, and book title.
 
@@ -279,19 +291,25 @@ Games are optional reinforcement, not the core reading experience. The backend s
 
 ### Existing MVP games from frontend
 
-1. **Match Word with Meaning**
+1. **Match Word with Meaning** (`meaning_match`)
    - Backend selects one highlighted word.
    - Backend provides the correct meaning.
    - Backend provides 2-3 distractor meanings from other Vault words or dictionary entries.
    - Frontend renders choices.
    - User answer is posted back for scoring/SRS.
 
-2. **Complete the Sentence**
+2. **Complete the Sentence** (`cloze`)
    - Backend selects one highlight.
-   - Backend replaces the target word in `context_sentence` with a blank.
+   - Backend replaces the target word in a newly generated example sentence (from dictionary or LLM) with a blank.
    - Backend provides the correct word plus distractor words from the Vault.
    - Frontend renders choices.
    - User answer updates mastery.
+
+### Gamification Fields
+To align with the frontend UI, the backend stores the following fields on game answers:
+- `combo_multiplier`: int (calculated client-side based on streak)
+- `xp_earned`: int (base_xp * combo_multiplier)
+- `response_time_ms`: int (time taken to answer, for match game timer tracking)
 
 ### Additional MVP-friendly game ideas
 
@@ -422,7 +440,7 @@ Core tables:
   - `id`, `highlight_id`, `ease_factor`, `interval_days`, `repetitions`, `mastery_level`, `next_review_at`, `last_review_at`
 
 - `review_events`
-  - `id`, `srs_item_id`, `game_type`, `grade`, `is_correct`, `selected_answer`, `answered_at`
+  - `id`, `srs_item_id`, `game_type`, `grade`, `is_correct`, `selected_answer`, `answered_at`, `combo_multiplier`, `xp_earned`, `response_time_ms`
 
 - `dictionary_entries`
   - `id`, `word`, `definition`, `synonyms_json`, `source`
@@ -516,6 +534,13 @@ Service modules to expect:
 
 ## 15) Implementation Phases
 
+### Phase 0.5: Development-to-Production Migration
+
+- Note: The FastAPI backend is a development tool. Production relies entirely on Flutter SQLite (`drift`).
+- Ensure `drift` schema matches SQLite schema.
+- Port SRS, Vault, Game, and Progress logic from Python to Dart.
+- Replace HTTP calls in Flutter with direct DB calls.
+
 ### Phase 1: API and database foundation
 
 - Create FastAPI app.
@@ -567,3 +592,4 @@ Service modules to expect:
 - No permanent visible highlights in the reader.
 - No exercises forced during reading.
 - No frontend implementation changes in this documentation step.
+- FastAPI is not the production delivery mechanism. It is a development and inspection tool. The production app uses drift (Flutter SQLite).

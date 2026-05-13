@@ -45,7 +45,7 @@ To achieve fluency, a user must consume high volumes of "Comprehensible Input" (
 * **Requirements:**
     * **Reflowable Text:** Must recalculate pagination based on font size changes in <200ms.
     * **CFI Support:** Canonical Fragment Identifiers are mandatory for bookmarking and "Jump to Source" logic.
-    * **CSS Injection:** System must inject custom stylesheets for "Parchment," "Midnight," and "Ink" modes to override book-specific hardcoded styles.
+    * **CSS Injection:** System must inject custom stylesheets for "Sunlight" and "Midnight" modes to override book-specific hardcoded styles.
 * **Edge Case:** Handle EPUBs with internal CSS that forces "white-background" text, ensuring our themes remain dominant.
 
 ### [F02] The "Ghost" Highlight (P0)
@@ -86,9 +86,8 @@ To achieve fluency, a user must consume high volumes of "Comprehensible Input" (
 * **Rule:** No translations. Only synonyms (e.g., "Meticulous" -> "Very careful; detailed").
 
 ### [F08] "Scholar" UI Themes (P1)
-* **Parchment:** `#F4ECD8` Background / `#2C2C2C` Text.
-* **Midnight:** `#1A1B26` Background / `#A9B1D6` Text.
-* **Ink:** `#000000` Background / `#E0E0E0` Text (OLED Optimized).
+* **Sunlight:** `#F1F0CC` Background / `#1F1B14` Text.
+* **Midnight:** `#030A23` Background / `#F9F4DA` Text.
 * **Typography Scale:** * Body: 16pt - 24pt (Adjustable).
     * Line Height: 1.5x - 1.8x.
 

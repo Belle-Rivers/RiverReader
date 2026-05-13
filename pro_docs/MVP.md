@@ -56,10 +56,9 @@ To bridge the gap between "Learning a Language" and "Reading for Pleasure" by re
 * **Content:** Shows a 2-second pop-up with a **synonym in English** (not a translation).
 
 ### [F08] "Scholar" UI Themes
-* **Requirement:** Three high-quality reading modes.
-* **Themes:** * *Parchment:* Warm cream with charcoal text.
+* **Requirement:** Two high-quality reading modes.
+* **Themes:** * *Sunlight:* Warm cream with charcoal text.
     * *Midnight:* Deep slate with off-white text.
-    * *Ink:* True black for OLED screens.
 
 ### [F09] Mastery Progress Visualization
 * **Requirement:** A simple dashboard.

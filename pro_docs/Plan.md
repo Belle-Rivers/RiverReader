@@ -9,6 +9,7 @@
 ## Phase 0: Backend API Foundation (Separate Service)
 
 **Goal:** Stand up a separate backend service that exposes OpenAPI docs at `/docs` and persists data in SQLite.
+*Note: FastAPI is a **developer-only tool**. Users never interact with it, and it is not deployed to production. It serves as an inspection tool and development backend until the drift migration.*
 
 *   **Task 0.1:** Choose backend framework: **FastAPI** + **Uvicorn** + **SQLite** (single-file DB).
 *   **Task 0.2:** Define the MVP schema (books, highlights, SRS state, review events).
@@ -28,8 +29,8 @@
 *   ✅ **Task 1.1:** Initialize the Flutter environment, configure linting rules, and implement a Feature-First or Clean Architecture folder structure (UI, Domain, Data layers).
 *   ✅ **Task 1.2:** Integrate and configure `Riverpod` for global state management, dependency injection, and reactivity across the app.
 *   ✅ **Task 1.3:** Set up application routing (e.g., using `GoRouter`) defining the navigation graph for the Library Shelf, EPUB Reader, and Scholar's Vault.
-*   ✅ **Task 1.4:** Build the global UI Theming engine, defining the color palettes, typography scales (Serif/Sans-serif), and logic to switch between "Parchment," "Midnight," and "Ink" modes.
-*   ✅ **Task 1.5:** Initialize a **client-side** SQLite cache using `sqflite` (or `drift` for type-safety), and execute the initial schema migrations (Tables: `books`, `ghost_highlights`).
+*   ✅ **Task 1.4:** Build the global UI theming engine, defining the color palettes, typography scales (Serif/Sans-serif), and logic to switch between "Sunlight" and "Midnight" modes.
+*   ✅ **Task 1.5:** Initialize a **client-side** SQLite cache using `sqflite` (or `drift` for type-safety), and execute the initial schema migrations (Tables: `books`, `ghost_highlights`). *Note: During development, drift is for EPUB asset caching and offline queues only. When FastAPI is deprecated for production, drift becomes the full data layer.*
 *   ✅ **Task 1.6:** Develop DAOs + Repository layer for local reads/writes, and prepare the interface to later sync with the backend API.
 *   ✅ **Task 1.7:** Implement a secure File Storage Manager using `path_provider` to handle app directory paths for storing unzipped EPUB assets, cover images, and the offline dictionary.
 *   ✅ **Task 1.8:** Set up a global error-handling and structured logging service to monitor WebView crashes, database read/write failures, and state anomalies.
@@ -41,10 +42,10 @@
 ### Epic 2: [F01] High-Fidelity EPUB Rendering Engine
 **User Story:** As a reader, I want to open an EPUB file and read it with customizable fonts and themes, so I have a premium reading experience equivalent to Kindle.
 
-*   **Task 2.1:** Initialize Flutter project, configure Riverpod for state management, and set up the `flutter_inappwebview` package.
-*   **Task 2.2:** Implement local file system routing to load unzipped EPUB assets into the local WebView server.
-*   **Task 2.3:** Integrate the `Epub.js` library and create the bidirectional JavaScript-to-Dart communication channel.
-*   **Task 2.4:** Write and inject custom CSS stylesheets for the three core themes ("Parchment", "Midnight", "Ink").
+*   ✅ **Task 2.1:** Initialize Flutter project, configure Riverpod for state management, and set up the `flutter_inappwebview` package.
+*   ✅ **Task 2.2:** Implement chapter content loading for WebView rendering (`GET /v1/books/{book_id}/chapters/{chapter_index}/content`).
+*   ✅ **Task 2.3:** Integrate the bidirectional JavaScript-to-Dart communication channel for real word-tap capture events.
+*   **Task 2.4:** Write and inject custom CSS stylesheets for the two core themes ("Sunlight", "Midnight").
 *   **Task 2.5:** Implement DOM manipulation scripts to override hardcoded publisher CSS (e.g., forcing transparent backgrounds and overriding font-families).
 *   **Task 2.6:** Develop the pagination logic and dynamic font-resizing functions, ensuring layout recalculation occurs in <200ms.
 *   **Task 2.7:** Build the Table of Contents (TOC) parser and map EPUB chapters to a native Flutter drawer UI.
@@ -64,7 +65,7 @@
 *   **Task 3.5:** Develop a JS DOM traversal algorithm to scan backwards/forwards from the highlighted word to find the nearest sentence terminators (`.`, `!`, `?`).
 *   **Task 3.6:** Construct the string payload: `[Sentence_Before] + [Target_Word] + [Sentence_After]`.
 *   **Task 3.7:** Capture current metadata (Book ID, Chapter, exact CFI location) and bundle it with the string payload.
-*   **Task 3.8:** Serialize the payload, send it through the JS bridge, and write an asynchronous SQLite `INSERT` to the `ghost_highlights` table.
+*   ✅ **Task 3.8:** Serialize the payload, send it through the JS bridge, and call `POST /v1/highlights` asynchronously. On failure, add to offline queue in SharedPreferences.
 
 ---
 
@@ -77,10 +78,16 @@
 *   **Task 4.2:** Implement native file picker integration (iOS Files / Android Documents) to import `.epub` files into the app's secure sandbox.
 *   **Task 4.3:** Extract metadata (Cover Art Blob, Title, Author) from the EPUB package and save it to the `books` table.
 *   **Task 4.4:** Build the native Flutter UI for the "Library Shelf" utilizing a Staggered Grid layout with cover art caching.
-*   **Task 4.5:** Develop the "Scholar's Vault" List View, grouping captured `ghost_highlights` by `book_id`.
-*   **Task 4.6:** Implement Full-Text SQLite search indexing to allow instant querying of target words and context sentences.
+*   ✅ **Task 4.5:** Develop the "Scholar's Vault" List View, grouping captured `ghost_highlights` by `book_id`.
+*   🚧 **Task 4.6:** Implement Full-Text SQLite search indexing to allow instant querying of target words and context sentences. *(Current status: API-backed search/filter/sort is working; FTS indexing remains pending.)*
 *   **Task 4.7:** Build the database cascade deletion logic: when a book is deleted, prompt the user to either retain or delete associated Vault words.
 *   **Task 4.8:** Implement the "Jump to Source" deep-link routing, passing the saved `CFI` to the EPUB Reader to open the exact page.
+
+### Brought forward usability fixes
+
+*   ✅ Reader index and reader-to-vault actions are now clickable and wired.
+*   ✅ Vault word tap now opens definition and mention context details.
+*   ✅ Vault sort and filter controls now work.
 
 ---
 
@@ -89,7 +96,7 @@
 ### Epic 5: [F05 & F12] The Restoration Game & Reveal Logic
 **User Story:** As a learner, I want to play a contextual fill-in-the-blank game using my saved words, so I can transfer them to my active vocabulary.
 
-*   **Task 5.1:** Implement the SuperMemo-2 (SM2) Spaced Repetition logic to calculate the `next_review_date` for each captured word.
+*   **Task 5.1:** Implement the SuperMemo-2 (SM2) Spaced Repetition logic to calculate the `next_review_date` for each captured word. *(Note: SM-2 SRS algorithm lives in `game_service.py` / `srs_service.py` during development, and will be ported 1:1 to `srs_repository.dart` before App Store submission.)*
 *   **Task 5.2:** Build the SQLite query to generate the daily "Game Deck," prioritizing words by recency and SM2 schedule.
 *   **Task 5.3:** Develop the "Cloze-Test" UI card, rendering the context string with the `target_word` replaced by a `[___]` blank.
 *   **Task 5.4:** Write the logic to scramble the letters of the `target_word` into interactive, draggable bottom-sheet tiles.

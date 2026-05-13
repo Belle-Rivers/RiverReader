@@ -1,49 +1,53 @@
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:river_reader_backend/river_reader_backend.dart';
 
-class LibraryShelfController extends AsyncNotifier<List<Book>> {
+import '../../auth/application/current_user_provider.dart';
+import '../data/book_api.dart';
+
+final bookApiProvider = Provider<BookApi>((ref) => BookApi());
+
+class LibraryShelfController extends AsyncNotifier<List<BookApiModel>> {
   @override
-  Future<List<Book>> build() async {
-    final BookRepository repository = ref.read(bookRepositoryProvider);
-    return repository.getAllBooks();
+  Future<List<BookApiModel>> build() async {
+    final userId = ref.watch(sessionUserIdProvider);
+    if (userId == null) return [];
+    
+    final api = ref.read(bookApiProvider);
+    return api.listBooks(userId);
   }
 
-  Future<void> addDemoBook() async {
-    final AsyncValue<List<Book>> previousValue = state;
+  Future<void> uploadBook(String filePath, String fileName, List<int> fileBytes) async {
+    final userId = ref.read(sessionUserIdProvider);
+    if (userId == null) return;
+
+    final api = ref.read(bookApiProvider);
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard<List<Book>>(() async {
-      final BookRepository repository = ref.read(bookRepositoryProvider);
-      await repository.insertBook(
-        Book(
-          title: 'Demo Book',
-          author: 'River Reader',
-          coverPath: null,
-          epubPath: '/demo.epub',
-        ),
-      );
-      return repository.getAllBooks();
+    state = await AsyncValue.guard(() async {
+      await api.uploadBook(userId, filePath, fileName, fileBytes);
+      return api.listBooks(userId);
     });
-    if (state.hasError) {
-      state = previousValue;
-    }
   }
 
-  Future<void> deleteBook(int bookId) async {
-    final AsyncValue<List<Book>> previousValue = state;
+  Future<void> deleteBook(String bookId) async {
+    final userId = ref.read(sessionUserIdProvider);
+    if (userId == null) return;
+
+    final api = ref.read(bookApiProvider);
+    final previousState = state;
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard<List<Book>>(() async {
-      final BookRepository repository = ref.read(bookRepositoryProvider);
-      await repository.deleteBook(bookId);
-      return repository.getAllBooks();
+    state = await AsyncValue.guard(() async {
+      await api.deleteBook(userId, bookId);
+      return api.listBooks(userId);
     });
+    
     if (state.hasError) {
-      state = previousValue;
+      state = previousState;
     }
   }
 }
 
 final libraryShelfControllerProvider =
-    AsyncNotifierProvider<LibraryShelfController, List<Book>>(() {
+    AsyncNotifierProvider<LibraryShelfController, List<BookApiModel>>(() {
   return LibraryShelfController();
 });
 

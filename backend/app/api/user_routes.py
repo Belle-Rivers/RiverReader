@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.db import SessionDep
-from app.schemas import UserProfileCreate, UserProfileRead, UserProfileUpdate
+from app.schemas import UserProfileCreate, UserProfileRead, UserProfileUpdate, UserLogin
 from app.services import profile_service
 
 user_router = APIRouter(prefix="/users", tags=["Users"])
@@ -25,6 +25,21 @@ def register_user_profile(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
+@user_router.post(
+    "/login",
+    response_model=UserProfileRead,
+    summary="Login user",
+)
+def login_user(
+    payload: UserLogin,
+    session: SessionDep,
+) -> UserProfileRead:
+    profile = profile_service.verify_login(session, payload)
+    if not profile:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    return profile
+
+
 @user_router.get("", response_model=list[UserProfileRead], summary="List user profiles")
 def list_user_profiles(
     session: SessionDep,
@@ -32,6 +47,18 @@ def list_user_profiles(
     offset: int = Query(default=0, ge=0),
 ) -> list[UserProfileRead]:
     return profile_service.list_user_profiles(session, limit=limit, offset=offset)
+
+
+@user_router.get(
+    "/by-email/{email}",
+    response_model=UserProfileRead,
+    summary="Get a user profile by email",
+)
+def get_user_profile_by_email(email: str, session: SessionDep) -> UserProfileRead:
+    profile = profile_service.get_user_profile_by_email(session, email)
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    return profile
 
 
 @user_router.get(
@@ -75,4 +102,3 @@ def delete_user_profile(user_id: UUID, session: SessionDep) -> Response:
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-

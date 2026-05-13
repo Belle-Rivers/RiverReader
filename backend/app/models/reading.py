@@ -97,6 +97,9 @@ class DictionaryEntry(SQLModel, table=True):
     word: str = Field(max_length=128)
     word_normalized: str = Field(max_length=128, unique=True, index=True)
     definition: str
+    # example_sentence: a standalone sentence using the word, used in the cloze game.
+    # It is intentionally different from the context_sentence captured during reading.
+    example_sentence: str | None = None
     synonyms_json: str | None = None
     source: str | None = Field(default=None, max_length=128)
 

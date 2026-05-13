@@ -4,6 +4,7 @@ from app.api.dictionary_routes import dictionary_router
 from app.api.game_routes import game_router
 from app.api.health_routes import health_router
 from app.api.highlight_routes import highlight_router
+from app.api.me_routes import me_router
 from app.api.review_routes import review_router
 from app.api.root_routes import root_router
 from app.api.user_routes import user_router
@@ -17,6 +18,7 @@ __all__ = [
     "game_router",
     "health_router",
     "highlight_router",
+    "me_router",
     "review_router",
     "root_router",
     "user_router",

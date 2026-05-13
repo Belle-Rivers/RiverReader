@@ -1,9 +1,11 @@
 from app.schemas.health import HealthResponse
-from app.schemas.profile import UserProfileCreate, UserProfileRead, UserProfileUpdate
+from app.schemas.home import HomeRead, HomeStatsRead
+from app.schemas.profile import UserProfileCreate, UserProfileRead, UserProfileUpdate, UserLogin
 from app.schemas.reading import (
     AiRequest,
     AiResponse,
     BookChapterCreate,
+    BookChapterContentRead,
     BookChapterRead,
     BookCreate,
     BookRead,
@@ -26,6 +28,7 @@ __all__ = [
     "AiRequest",
     "AiResponse",
     "BookChapterCreate",
+    "BookChapterContentRead",
     "BookChapterRead",
     "BookCreate",
     "BookRead",
@@ -34,6 +37,8 @@ __all__ = [
     "GameAnswerCreate",
     "GameDeckItemRead",
     "HealthResponse",
+    "HomeRead",
+    "HomeStatsRead",
     "HighlightCreate",
     "HighlightRead",
     "ReadingProgressRead",
@@ -44,6 +49,7 @@ __all__ = [
     "UserProfileCreate",
     "UserProfileRead",
     "UserProfileUpdate",
+    "UserLogin",
     "VaultItemRead",
     "VersionResponse",
 ]

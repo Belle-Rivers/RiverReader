@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 class UserProfileCreate(BaseModel):
     """Payload to register a local user profile (username-only MVP)."""
 
-    username: str = Field(min_length=1, max_length=64)
+    email: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=8, max_length=128)
     display_name: str | None = Field(default=None, max_length=128)
     device_install_id: str | None = Field(default=None, max_length=128)
     preferred_locale: str | None = Field(default=None, max_length=16, examples=["en-US"])
@@ -22,7 +23,7 @@ class UserProfileCreate(BaseModel):
 class UserProfileUpdate(BaseModel):
     """Partial update for display name and/or username."""
 
-    username: str | None = Field(default=None, min_length=1, max_length=64)
+    email: str | None = Field(default=None, min_length=1, max_length=64)
     display_name: str | None = Field(default=None, max_length=128)
     device_install_id: str | None = Field(default=None, max_length=128)
     preferred_locale: str | None = Field(default=None, max_length=16)
@@ -38,7 +39,7 @@ class UserProfileRead(BaseModel):
     """Public profile shape (no internal normalized username field)."""
 
     id: UUID
-    username: str
+    email: str
     display_name: str | None
     device_install_id: str | None
     preferred_locale: str | None
@@ -52,3 +53,8 @@ class UserProfileRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class UserLogin(BaseModel):
+    email: str
+    password: str

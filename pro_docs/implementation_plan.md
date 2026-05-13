@@ -1,0 +1,298 @@
+# RiverReader — Implementation Plan (Settled)
+
+## ✅ Architecture (Final Decision)
+
+**Local-First with `drift` (Flutter SQLite) for production. FastAPI for development only.**
+
+| Layer | Tool | Purpose |
+|---|---|---|
+| **Flutter (production)** | `drift` (SQLite on device) | Primary data store for all users |
+| **FastAPI (development)** | Python + SQLite | Swagger UI, DB inspection, prototyping logic |
+| **Cloud sync (future IAP)** | Supabase | Premium feature: sync across devices |
+
+> [!IMPORTANT]
+> The FastAPI backend is a **developer tool only** — it never ships to users. When a user installs RiverReader from the App Store or Google Play, all data lives in `drift` SQLite on their device. No server needed. Zero cost.
+
+---
+
+## 📍 When to Switch from FastAPI → drift
+
+This is the clearest possible answer to "when do I stop using FastAPI and switch to local storage":
+
+```
+PHASE                    TOOL               REASON
+─────────────────────────────────────────────────────────────
+Development (now)        FastAPI + SQLite   Swagger UI, fast iteration, inspect DB
+Before first TestFlight  Migrate to drift   All logic ported to Dart; FastAPI stays as dev tool
+App Store submission     drift only         No Python needed. Just build and submit Flutter app
+When adding cloud sync   drift + Supabase   Supabase added behind IAP paywall for premium users
+```
+
+### Transition Checklist (FastAPI → drift)
+
+Tick these off before submitting to the App Store:
+
+- [ ] `drift` schema matches current SQLite schema (`users`, `books`, `highlights`, `srs_items`, `review_events`, `reading_progress`, `dictionary_entries`)
+- [ ] SM-2 SRS algorithm ported to Dart (`srs_service.py` → `srs_repository.dart`)
+- [ ] Game deck generation ported to Dart (`game_service.py` → `game_repository.dart`)
+- [ ] Vault query with search ported to Dart (`vault_service.py` → `vault_repository.dart`)
+- [ ] Reading progress save/load ported to Dart (`progress_service.py` → `progress_repository.dart`)
+- [ ] All HTTP API calls in Flutter replaced with direct `drift` DB calls
+- [ ] FastAPI backend kept on your Mac for admin/debugging (it's still useful for you, just not for users)
+
+---
+
+## 🎮 Games: Backend Contract + Gamification Alignment
+
+### The Two MVP Games
+
+Both games are powered by **words from the user's Vault** (captured highlights). The backend already has this logic in `game_service.py`. The frontend UI already has the visual shell in `game_session_page.dart` but uses hardcoded mock data.
+
+#### Game 1: Complete the Sentence (`cloze`)
+- Backend selects a vault word and returns a **newly generated sentence** containing the word (NOT the captured `context_sentence` from the book)
+- The `context_sentence` is for Vault reference only — it shows the user where they first saw the word
+- The game sentence must be different from the capture context so the user is tested on their knowledge of the word in a new context, not just recognising the original sentence
+- Returns 3 distractor words (other vault words) + the correct word as `choices[]`
+- Frontend renders the new sentence with the word blanked + word option tiles
+- User taps a word → frontend submits answer → backend updates SRS
+
+> [!IMPORTANT]
+> **Backend change needed in `game_service.py`:** The `_blank_word()` function currently uses `highlight.context_sentence`. This must be replaced with a source for **new example sentences**. For MVP without AI, this comes from `dictionary_entries.example_sentence` (a new field to add to the dictionary table). When AI is enabled, the LLM generates a fresh sentence.
+
+#### Game 2: Match the Word (`meaning_match`)
+- Backend selects multiple highlights and returns words + their definitions
+- Frontend displays words in one column, definitions in another
+- User taps pairs to match them
+- Each correct pair → submit answer → backend updates SRS
+
+#### Game 2: Match the Word (`meaning_match`)
+- Backend selects multiple highlights and returns words + their definitions
+- Frontend displays words in one column, definitions in another
+- User taps pairs to match them
+- Each correct pair → submit answer → backend updates SRS
+
+### Gamification Factors (Backend + Frontend Alignment)
+
+The frontend already shows combo, XP (stars), lives, and a timer. These must be driven by backend data.
+
+| UI Element | Frontend (current) | Backend contract |
+|---|---|---|
+| **Combo multiplier** (`combo x3`) | Hardcoded `x0` / `x3` | Calculated client-side: streak of correct answers. Reset on wrong answer. Sent in `answer` payload as `combo_multiplier`. |
+| **XP / Stars** (`auto_awesome` icon) | Shows `110` hardcoded | Calculated as: `base_xp * combo_multiplier`. Backend receives final `xp_earned` in the answer payload and stores it in `review_events`. |
+| **Lives** (❤️ icons) | 3 hearts hardcoded | Cloze game only. Start with 3. Each wrong answer costs 1 life. Session ends at 0 lives. Not stored on backend — session-only state in Flutter. |
+| **Timer** (`33s`) | Hardcoded | Match game only. Client-side countdown. Time remaining sent in answer payload as `response_time_ms`. |
+| **Round / Progress** (`ROUND 1/6`) | Hardcoded | Deck size from backend determines total rounds. Frontend tracks current round locally. |
+| **Mastery level** | Not shown yet | Returned in `ReviewEventRead.srs` after each answer. Frontend can show mastery badge on word card. |
+
+### Required Backend Schema Addition
+
+The `review_events` table and `GameAnswerCreate` schema need two new fields:
+
+```python
+# Add to GameAnswerCreate schema
+combo_multiplier: int = 1       # client-calculated streak multiplier
+xp_earned: int = 0              # base_xp * combo_multiplier
+response_time_ms: int | None = None  # for match game timer tracking
+```
+
+```sql
+-- Add to review_events table migration
+ALTER TABLE review_events ADD COLUMN combo_multiplier INTEGER DEFAULT 1;
+ALTER TABLE review_events ADD COLUMN xp_earned INTEGER DEFAULT 0;
+ALTER TABLE review_events ADD COLUMN response_time_ms INTEGER;
+```
+
+> [!NOTE]
+> When migrating to `drift`, these fields are part of the schema from the start — no ALTER TABLE needed.
+
+---
+
+## 🗺️ Feature Connection Roadmap (Development Order)
+
+These connect the FastAPI backend to the Flutter frontend, preparing the codebase for the eventual drift migration.
+
+### Phase 1 — Reading Progress Sync
+**Endpoint:** `GET/PUT /v1/books/{book_id}/progress`  
+**Goal:** "Continue where you left off"
+
+**Status:** ✅ Completed
+
+**Files to create/modify:**
+- `frontend/lib/features/library/data/book_api.dart` — add `getProgress()` and `saveProgress()` methods
+- `frontend/lib/features/reader/presentation/reader_page.dart` — call `saveProgress()` on close/chapter change
+- `frontend/lib/features/reader/controllers/reader_controller.dart` — manage CFI state
+
+**Behavior:**
+- On book open → `GET /v1/books/{book_id}/progress` → navigate Epub.js to returned CFI
+- On chapter change / reader close → `PUT /v1/books/{book_id}/progress` with current CFI + percent
+- Save interval: on chapter change + when app goes to background (not every scroll)
+
+---
+
+### Phase 2 — Silent Ghost Highlighting
+**Endpoint:** `POST /v1/highlights`  
+**Goal:** Word captured in Vault without interrupting reading
+
+**Status:** ✅ Completed
+
+**Files to create/modify:**
+- `frontend/lib/features/vault/data/highlight_api.dart` — new file, `createHighlight()` method
+- `frontend/lib/features/reader/presentation/reader_page.dart` — JS bridge callback
+- `frontend/lib/features/vault/application/vault_provider.dart` — invalidate on new highlight
+
+**Behavior:**
+1. User swipes/taps word in EPUB WebView
+2. JS bridge fires immediately → Flutter triggers haptic + shimmer animation (< 50ms)
+3. **Asynchronously** (fire and forget): `POST /v1/highlights` with `target_word`, `context_before`, `context_sentence`, `context_after`, `cfi`, `chapter_title`, `book_id`
+4. If the POST fails (offline): save to a local JSON queue (`shared_preferences`) and retry on next app launch
+
+**Implemented now:**
+- ✅ Real `InAppWebView` JavaScript handler (`callHandler`) wired to Flutter highlight capture
+- ✅ Real chapter HTML loading via `GET /v1/books/{book_id}/chapters/{chapter_index}/content`
+- ✅ Chapter index now performs real chapter switching in WebView
+- ✅ Per-chapter progress save runs on chapter navigation
+- ✅ Reader controls now work (`-`/`+` font sizing and previous/next chapter navigation)
+- ✅ Simulated highlight payload removed from reader flow
+- ✅ Async `POST /v1/highlights` with offline queue retry kept active
+
+**Offline queue contract:**
+```dart
+// Stored in SharedPreferences as JSON list
+class PendingHighlight {
+  final String targetWord;
+  final String contextSentence;
+  final String? contextBefore;
+  final String? contextAfter;
+  final String bookId;
+  final String? cfi;
+  final String? chapterTitle;
+  final DateTime capturedAt;
+}
+```
+
+---
+
+### Phase 3 — Games: Connect Real Vault Data
+**Endpoints:** `GET /v1/games/deck`, `POST /v1/games/answer`  
+**Goal:** Replace all hardcoded mock data in game_session_page.dart with real vault words
+
+**Files to create/modify:**
+- `frontend/lib/features/games/data/game_api.dart` — new file, `getDeck()` and `submitAnswer()` methods
+- `frontend/lib/features/games/controllers/game_controller.dart` — Riverpod notifier managing session state
+- `frontend/lib/features/games/presentation/game_session_page.dart` — consume real data
+
+**`GameDeckItemRead` already returns from backend:**
+```
+game_type, highlight_id, srs_item_id, target_word,
+prompt, choices[], correct_answer, definition, book_title
+```
+
+**Session state managed in Flutter (not backend):**
+```dart
+class GameSessionState {
+  final List<GameDeckItemRead> deck;
+  final int currentIndex;
+  final int combo;         // streak of correct answers
+  final int xp;            // accumulated XP this session
+  final int lives;         // cloze only, start at 3
+  final int? timerMs;      // match game only
+  final bool sessionOver;
+}
+```
+
+**Submitting an answer:**
+```dart
+await gameApi.submitAnswer(GameAnswerCreate(
+  srsItemId: item.srsItemId,
+  userId: currentUserId,
+  gameType: item.gameType,
+  selectedAnswer: selectedWord,
+  isCorrect: selectedWord == item.correctAnswer,
+  grade: isCorrect ? 4 : 0,           // SM-2 grade
+  comboMultiplier: state.combo,
+  xpEarned: baseXp * state.combo,
+  responseTimeMs: elapsedMs,          // match game only
+));
+```
+
+---
+
+### Phase 4 — Home Dashboard
+**Endpoint:** `GET /v1/me/home`  
+**Goal:** Show real user stats on the Home page
+
+**Data to show (already in `HomeRead` response + additions needed):**
+- ✅ `stats.vault_count` — total words captured
+- ✅ `stats.books_count` — total books in library
+- ✅ `stats.due_reviews_count` — games ready to play today
+- ✅ `last_opened_book` + `last_progress` — resume reading button
+- 🆕 `recent_vault_words` — **last 5 words added to the Vault** (word + book title)
+
+**Backend change needed in `home_service.py` and `home.py` schema:**
+```python
+# Add to HomeStatsRead or HomeRead
+recent_vault_words: list[VaultItemRead] = []  # last 5 highlights ordered by created_at desc
+```
+
+**Files to create/modify:**
+- `backend/app/schemas/home.py` — add `recent_vault_words` field to `HomeRead`
+- `backend/app/services/home_service.py` — add `_recent_vault_words()` query
+- `frontend/lib/features/home/data/home_api.dart` — new file
+- `frontend/lib/features/home/application/home_provider.dart` — Riverpod provider
+- `frontend/lib/features/home/presentation/home_page.dart` — consume real data
+
+---
+
+### Vault and Reader UX Fixes (Brought Forward)
+
+These were originally part of later polish in Phase 4+, but are implemented now for usability:
+
+- ✅ Vault word tap opens details (definition + where mentioned context)
+- ✅ Vault sort button works (`Recent`, `A-Z`, `Book`)
+- ✅ Vault filter button works (all books / specific book)
+- ✅ Reader index button is now actionable
+- ✅ Reader vault button opens vault filtered by the current `book_id`
+
+### Phase 5 — Emergency Synonym Hint
+**Endpoint:** `GET /v1/dictionary/{word}`  
+**Goal:** Double-tap a word in the reader → show a tooltip with synonyms/definition
+
+**Files to create/modify:**
+- `frontend/lib/features/reader/data/dictionary_api.dart` — new file
+- `frontend/lib/features/reader/presentation/reader_page.dart` — double-tap JS bridge + tooltip overlay
+
+**Behavior:**
+- If backend returns a definition → show it in the tooltip
+- If offline or word not found → show "No hint available" gracefully (never crash)
+
+---
+
+## 📋 Documentation Updates Required
+
+### `pro_docs/Plan.md` — Changes
+- **Phase 0:** Add note that FastAPI is a **developer-only tool**. Users never interact with it. It is not deployed.
+- **Phase 1 (Task 1.5):** Clarify that `drift` SQLite in Flutter is for **EPUB asset caching and offline queues only** during development. When FastAPI is deprecated for production, `drift` becomes the full data layer.
+- **Phase 3 (Task 3.8):** Change "write async SQLite INSERT" → "call `POST /v1/highlights` asynchronously. On failure, add to offline queue in SharedPreferences."
+- **Phase 5:** SM-2 SRS algorithm lives in `game_service.py` / `srs_service.py` during development, and will be ported 1:1 to `srs_repository.dart` before App Store submission.
+
+### `pro_docs/backend.md` — Changes
+- **Section 3 (User Identity):** Add that a `/login` endpoint has been implemented. It finds an existing profile by username. Password auth deferred to cloud sync phase.
+- **Section 9 (Games):** Update to reflect the two finalized game types (`cloze` = "Complete the Sentence", `meaning_match` = "Match the Word") and add gamification fields: `combo_multiplier`, `xp_earned`, `response_time_ms`.
+- **Section 12 (Data Model):** Add the three new fields to `review_events`.
+- **Section 15 (Implementation Phases):** Add a **Phase 0.5: Development-to-Production Migration** section explaining the drift transition checklist above.
+- **Section 16 (Non-Goals):** Add: "FastAPI is not the production delivery mechanism. It is a development and inspection tool. The production app uses drift (Flutter SQLite)."
+
+---
+
+## ✅ Verification Plan
+
+| Feature | Test |
+|---|---|
+| **Reading Progress** | Open book → go to chapter 3 → close app → reopen → should resume at chapter 3 |
+| **Ghost Highlight** | Tap a word → shimmer + haptic should fire instantly → check Vault page for the saved word |
+| **Offline Highlight** | Stop the backend → tap a word → start backend again → confirm the word syncs to Vault |
+| **Complete the Sentence** | Start game → sentences should come from real vault words, not Great Gatsby mock data |
+| **Match the Word** | Start game → words + definitions from vault, not hardcoded options |
+| **Combo/XP** | Answer 3 in a row correctly → combo should show x3 and XP should increase |
+| **Home Dashboard** | After a reading session → home page shows correct word count and last book |
+| **Dictionary Hint** | Double-tap a word while reading → tooltip shows definition from backend |

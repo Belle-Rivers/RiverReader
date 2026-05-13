@@ -49,6 +49,8 @@ class BookRead(BaseModel):
     updated_at: datetime
     is_deleted: bool
     chapters: list[BookChapterRead] = Field(default_factory=list)
+    progress_percent: float | None = None
+    last_read_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -73,6 +75,15 @@ class ReadingProgressRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BookChapterContentRead(BaseModel):
+    book_id: UUID
+    chapter_index: int
+    chapter_title: str | None = None
+    chapter_href: str
+    content_html: str
+    content_text: str = ""
 
 
 class HighlightCreate(BaseModel):

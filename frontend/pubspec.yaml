@@ -12,7 +12,11 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.5.1
   go_router: ^13.2.0
+  google_fonts: ^6.2.1
   http: ^1.2.2
+  shared_preferences: ^2.3.2
+  file_picker: ^8.1.4
+  http_parser: ^4.1.0
   flutter_inappwebview: ^6.0.0 # From task 1.1 in Epic 1[F01]
   river_reader_backend:
     path: ../backend

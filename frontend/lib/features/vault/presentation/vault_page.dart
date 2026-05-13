@@ -2,377 +2,335 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class VaultPage extends ConsumerWidget {
+import '../../../core/widgets/river_ui.dart';
+import '../../auth/application/current_user_provider.dart';
+import '../../library/controllers/library_shelf_controller.dart';
+import '../../library/data/book_api.dart';
+import '../application/vault_provider.dart';
+import '../data/vault_api.dart';
+
+class VaultPage extends ConsumerStatefulWidget {
   const VaultPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  IconButton(
-                    onPressed: () => context.go('/'),
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-                  const Text(
-                    'My Vault',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(width: 48), // Balance the back button
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Filter and Sort buttons
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildFilterButton(
-                      icon: Icons.filter_list,
-                      label: 'Book Filter',
-                      onTap: () {
-                        // Show book filter
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildFilterButton(
-                      icon: Icons.sort,
-                      label: 'Sort by',
-                      onTap: () {
-                        // Show sort options
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Word list
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _getDemoWords().length,
-                  itemBuilder: (context, index) {
-                    final word = _getDemoWords()[index];
-                    return _buildWordCard(word);
-                  },
-                ),
-              ),
-              
-              const SizedBox(height: 16),
-              
-              // Bottom Navigation
-              _buildBottomNavigation(context),
-            ],
-          ),
-        ),
-      ),
-    );
+  ConsumerState<VaultPage> createState() => _VaultPageState();
+}
+
+class _VaultPageState extends ConsumerState<VaultPage> {
+  final TextEditingController _searchController = TextEditingController();
+  bool _didReadInitialBookFilter = false;
+  _VaultSort _sort = _VaultSort.recent;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  Widget _buildFilterButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final vaultItemsAsync = ref.watch(vaultItemsProvider);
+    final booksAsync = ref.watch(libraryShelfControllerProvider);
+    final selectedBookId = ref.watch(vaultSelectedBookIdProvider);
+
+    if (!_didReadInitialBookFilter) {
+      _didReadInitialBookFilter = true;
+      final String? routeBookId = GoRouterState.of(context).uri.queryParameters['bookId'];
+      if (routeBookId != null && routeBookId.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(vaultSelectedBookIdProvider.notifier).state = routeBookId;
+        });
+      }
+    }
+
+    return RiverScaffold(
+      title: 'The Vault',
+      tab: RiverTab.vault,
+      body: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: Colors.grey.shade600,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontWeight: FontWeight.w500,
+            TextField(
+              controller: _searchController,
+              onChanged: (String value) {
+                ref.read(vaultSearchQueryProvider.notifier).state = value;
+              },
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Search words or meanings...',
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWordCard(WordEntry word) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      word.word,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      word.definition,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                        height: 1.4,
-                      ),
-                    ),
-                    if (word.book.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.purple.shade200),
-                        ),
-                        child: Text(
-                          word.book,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.purple.shade700,
-                            fontWeight: FontWeight.w500,
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _bookFilterPill(
+                    theme: theme,
+                    selectedBookId: selectedBookId,
+                    booksAsync: booksAsync,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 190,
+                  child: _sortPill(theme),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            vaultItemsAsync.when(
+              data: (items) => Text('${_sortItems(items).length} words', style: theme.textTheme.bodyLarge),
+              loading: () => Text('Loading...', style: theme.textTheme.bodyLarge),
+              error: (e, st) => Text('Failed to load', style: theme.textTheme.bodyLarge),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: vaultItemsAsync.when(
+                data: (items) {
+                  final sortedItems = _sortItems(items);
+                  if (sortedItems.isEmpty) {
+                    return const Center(child: Text('No words in vault yet.'));
+                  }
+                  return ListView.builder(
+                    itemCount: sortedItems.length,
+                    itemBuilder: (_, i) {
+                      final item = sortedItems[i];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: RiverCard(
+                          child: InkWell(
+                            onTap: () => _openWordDetails(item),
+                            borderRadius: BorderRadius.circular(18),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.targetWord,
+                                        style: theme.textTheme.titleLarge?.copyWith(fontStyle: FontStyle.italic),
+                                      ),
+                                    ),
+                                    Text(item.bookTitle ?? 'Unknown Book', style: theme.textTheme.bodyLarge),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      onPressed: () => _confirmDelete(item),
+                                      icon: const Icon(Icons.delete_outline),
+                                      tooltip: 'Delete word',
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  '"${item.contextSentence}"',
+                                  style: theme.textTheme.bodyLarge,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ],
-                ),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) => Center(child: Text('Error: $e')),
               ),
-              const SizedBox(width: 12),
-              Column(
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<VaultItemRead> _sortItems(List<VaultItemRead> items) {
+    final sorted = List<VaultItemRead>.from(items);
+    switch (_sort) {
+      case _VaultSort.recent:
+        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      case _VaultSort.alphabetical:
+        sorted.sort((a, b) => a.targetWord.toLowerCase().compareTo(b.targetWord.toLowerCase()));
+      case _VaultSort.book:
+        sorted.sort((a, b) => (a.bookTitle ?? '').toLowerCase().compareTo((b.bookTitle ?? '').toLowerCase()));
+    }
+    return sorted;
+  }
+
+  Widget _bookFilterPill({
+    required ThemeData theme,
+    required String? selectedBookId,
+    required AsyncValue<List<BookApiModel>> booksAsync,
+  }) {
+    final selectedBookName = booksAsync.maybeWhen(
+      data: (books) => books
+          .firstWhere(
+            (book) => book.id == selectedBookId,
+            orElse: () => const BookApiModel(id: '', title: 'All books'),
+          )
+          .title,
+      orElse: () => 'All books',
+    );
+    final label = selectedBookId == null ? 'All books' : selectedBookName;
+    return PopupMenuButton<String?>(
+      onSelected: (value) {
+        ref.read(vaultSelectedBookIdProvider.notifier).state = value;
+      },
+      itemBuilder: (context) {
+        final items = <PopupMenuEntry<String?>>[
+          const PopupMenuItem<String?>(
+            value: null,
+            child: Text('All books'),
+          ),
+        ];
+        booksAsync.whenData((books) {
+          for (final book in books) {
+            items.add(
+              PopupMenuItem<String?>(
+                value: book.id,
+                child: Text(book.title),
+              ),
+            );
+          }
+        });
+        return items;
+      },
+      child: _pill(theme, label),
+    );
+  }
+
+  Widget _sortPill(ThemeData theme) {
+    return PopupMenuButton<_VaultSort>(
+      onSelected: (value) {
+        setState(() {
+          _sort = value;
+        });
+      },
+      itemBuilder: (context) => const [
+        PopupMenuItem<_VaultSort>(
+          value: _VaultSort.recent,
+          child: Text('Recent'),
+        ),
+        PopupMenuItem<_VaultSort>(
+          value: _VaultSort.alphabetical,
+          child: Text('A-Z'),
+        ),
+        PopupMenuItem<_VaultSort>(
+          value: _VaultSort.book,
+          child: Text('Book'),
+        ),
+      ],
+      child: _pill(theme, _sort.label),
+    );
+  }
+
+  Widget _pill(ThemeData theme, String label) {
+    return RiverCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: theme.textTheme.bodyLarge),
+          const Icon(Icons.expand_more),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openWordDetails(VaultItemRead item) async {
+    final DictionaryEntryModel? entry =
+        await ref.read(vaultApiProvider).getDictionaryEntry(item.targetWord);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final theme = Theme.of(context);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildActionButton(
-                    icon: Icons.info_outline,
-                    color: Colors.blue.shade600,
-                    onTap: () {
-                      // Show details
-                    },
+                  Text(item.targetWord, style: theme.textTheme.headlineMedium),
+                  const SizedBox(height: 10),
+                  Text(
+                    entry?.definition ?? 'No definition found yet.',
+                    style: theme.textTheme.bodyLarge,
                   ),
-                  const SizedBox(height: 8),
-                  _buildActionButton(
-                    icon: Icons.archive_outlined,
-                    color: Colors.orange.shade600,
-                    onTap: () {
-                      // Archive word
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _buildActionButton(
-                    icon: Icons.delete_outline,
-                    color: Colors.red.shade600,
-                    onTap: () {
-                      // Delete word
-                    },
+                  const SizedBox(height: 12),
+                  if (entry != null && entry.synonyms.isNotEmpty)
+                    Text(
+                      'Synonyms: ${entry.synonyms.join(', ')}',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                  const SizedBox(height: 12),
+                  Text('Where it was mentioned', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 6),
+                  Text(item.contextSentence, style: theme.textTheme.bodyLarge),
+                  if (item.contextBefore != null) ...[
+                    const SizedBox(height: 6),
+                    Text('Before: ${item.contextBefore}', style: theme.textTheme.bodyMedium),
+                  ],
+                  if (item.contextAfter != null) ...[
+                    const SizedBox(height: 6),
+                    Text('After: ${item.contextAfter}', style: theme.textTheme.bodyMedium),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    'Book: ${item.bookTitle ?? 'Unknown'} · Chapter: ${item.chapterTitle ?? '-'}',
+                    style: theme.textTheme.bodyMedium,
                   ),
                 ],
               ),
-            ],
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: color,
-        ),
-      ),
+  Future<void> _confirmDelete(VaultItemRead item) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Delete "${item.targetWord}"?'),
+          content: const Text('Are you sure you want to delete this word from the vault?'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Delete')),
+          ],
+        );
+      },
     );
-  }
+    
+    if (shouldDelete != true) return;
+    if (!mounted) return;
 
-  Widget _buildBottomNavigation(BuildContext context) {
-    return Container(
-      height: 70,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 15,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _buildNavItem(
-            icon: Icons.home,
-            label: 'Home',
-            onTap: () => context.go('/'),
-          ),
-          _buildNavItem(
-            icon: Icons.library_books,
-            label: 'Shelf',
-            onTap: () => context.go('/shelf'),
-          ),
-          _buildNavItem(
-            icon: Icons.library_books,
-            label: 'Vault',
-            isActive: true,
-            onTap: () {},
-          ),
-          _buildNavItem(
-            icon: Icons.menu_book,
-            label: 'Reader',
-            onTap: () => context.go('/reader'),
-          ),
-          _buildNavItem(
-            icon: Icons.extension,
-            label: 'Games',
-            onTap: () => context.go('/games'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNavItem({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool isActive = false,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                icon,
-                size: 20,
-                color: isActive ? Colors.purple.shade600 : Colors.grey.shade600,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isActive ? Colors.purple.shade600 : Colors.grey.shade600,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<WordEntry> _getDemoWords() {
-    return [
-      WordEntry(
-        word: 'Serendipity',
-        definition: 'The occurrence of events by chance in a happy or beneficial way.',
-        book: 'The Great Gatsby',
-      ),
-      WordEntry(
-        word: 'Ephemeral',
-        definition: 'Lasting for a very short time; transient.',
-        book: '1984',
-      ),
-      WordEntry(
-        word: 'Mellifluous',
-        definition: 'Sweet or musical; pleasant to hear.',
-        book: 'Pride and Prejudice',
-      ),
-      WordEntry(
-        word: 'Petrichor',
-        definition: 'The pleasant, earthy smell produced when rain falls on dry soil.',
-        book: 'To Kill a Mockingbird',
-      ),
-      WordEntry(
-        word: 'Limerence',
-        definition: 'The state of being infatuated with another person.',
-        book: 'The Catcher in the Rye',
-      ),
-    ];
+    final userId = ref.read(sessionUserIdProvider);
+    if (userId == null) return;
+    
+    try {
+      await ref.read(vaultApiProvider).deleteHighlight(item.id, userId);
+      ref.invalidate(vaultItemsProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Word deleted')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete word: $e')));
+    }
   }
 }
 
-class WordEntry {
-  final String word;
-  final String definition;
-  final String book;
-
-  WordEntry({
-    required this.word,
-    required this.definition,
-    required this.book,
-  });
+enum _VaultSort {
+  recent('Recent'),
+  alphabetical('A-Z'),
+  book('Book');
+  const _VaultSort(this.label);
+  final String label;
 }
-
