@@ -278,13 +278,18 @@ Useful endpoints:
 - `GET /v1/vault/search?q=...`
 - `GET /v1/highlights/{highlight_id}`
 - `DELETE /v1/highlights/{highlight_id}`
-- `GET /v1/dictionary/{word}` (used by vault word details)
+- `GET /v1/dictionary/{word}` (reader hint + Vault word details; `example_sentence` included in JSON when set — used by cloze generation)
+- **Dev dictionary maintenance (populate SQLite `dictionary_entries`):**
+  - `POST /v1/dictionary` — create (409 if `word_normalized` already exists)
+  - `PUT /v1/dictionary/{word}` — upsert by normalized word from path
+  - `PATCH /v1/dictionary/{word}` — partial update
+  - `DELETE /v1/dictionary/{word}` — remove entry
 
 Current implementation status:
 
 - ✅ Vault filtering by `book_id` is now active in frontend
 - ✅ Vault search query (`q`) is now active in frontend
-- ✅ Vault word tap now surfaces dictionary definition and source context
+- ✅ Vault word tap loads dictionary text via `DictionaryApi` (with loading state); reader double-tap uses the same lookup
 
 Use SQLite FTS5 later for fast full-text search across `target_word`, `context_sentence`, and book title.
 
@@ -502,6 +507,10 @@ All product endpoints are versioned under `/v1`.
 ### Dictionary and optional AI
 
 - `GET /v1/dictionary/{word}`
+- `POST /v1/dictionary` — create dictionary row (dev seeding)
+- `PUT /v1/dictionary/{word}` — upsert
+- `PATCH /v1/dictionary/{word}` — partial update
+- `DELETE /v1/dictionary/{word}` — delete
 - `POST /v1/ai/define`
 - `POST /v1/ai/generate-distractors`
 

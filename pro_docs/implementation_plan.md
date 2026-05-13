@@ -135,13 +135,13 @@ These connect the FastAPI backend to the Flutter frontend, preparing the codebas
 - `frontend/lib/features/vault/application/vault_provider.dart` — invalidate on new highlight
 
 **Behavior:**
-1. User **double-taps** a word in the EPUB WebView (silent capture; no dictionary popup)
+1. User **long-presses** (~0.5s) a word in the EPUB WebView (silent capture; no dictionary popup)
 2. JS bridge fires immediately → Flutter triggers haptic + shimmer animation (< 50ms)
 3. **Asynchronously** (fire and forget): `POST /v1/highlights` with `target_word`, `context_before`, `context_sentence`, `context_after`, `cfi`, `chapter_title`, `book_id`
 4. If the POST fails (offline): save to a local JSON queue (`shared_preferences`) and retry on next app launch
 
 **Implemented now:**
-- ✅ Real `InAppWebView` JavaScript handler (`callHandler`) wired to Flutter highlight capture
+- ✅ Real `InAppWebView` JavaScript handler (`callHandler`) wired to Flutter highlight capture (**long-press** on word; double-tap is reserved for dictionary hint — see Phase 5)
 - ✅ Real chapter HTML loading via `GET /v1/books/{book_id}/chapters/{chapter_index}/content`
 - ✅ Chapter index now performs real chapter switching in WebView
 - ✅ Per-chapter progress save runs on chapter navigation
@@ -241,40 +241,54 @@ await gameApi.submitAnswer(GameAnswerCreate(
 
 These were originally part of later polish in Phase 4+, but are implemented now for usability:
 
-- ✅ Vault word tap opens details (definition + where mentioned context)
+- ✅ Vault word tap opens details (definition + where mentioned context); definition row comes from `GET /v1/dictionary/{word}` when present
 - ✅ Vault sort button works (`Recent`, `A-Z`, `Book`)
 - ✅ Vault filter button works (all books / specific book)
 - ✅ Reader index button is now actionable
 - ✅ Reader vault button opens vault filtered by the current `book_id`
+- ✅ **Gesture split:** long-press (~0.5s) = silent capture to Vault; double-tap = dictionary hint overlay (Phase 5)
 
 ### Phase 5 — Emergency Synonym Hint
-**Endpoint:** `GET /v1/dictionary/{word}`  
-**Goal:** Double-tap a word in the reader → show a tooltip with synonyms/definition
+**Endpoint:** `GET /v1/dictionary/{word}` (read); **dev dictionary seeding:** `POST /v1/dictionary`, `PUT /v1/dictionary/{word}`, `PATCH /v1/dictionary/{word}`, `DELETE /v1/dictionary/{word}`  
+**Goal:** Double-tap a word in the reader → show a transient hint with definition/synonyms; Vault detail sheet loads the same dictionary.
+
+**Status:** ✅ Completed
 
 **Files to create/modify:**
-- `frontend/lib/features/reader/data/dictionary_api.dart` — new file
-- `frontend/lib/features/reader/presentation/reader_page.dart` — double-tap JS bridge + tooltip overlay
+- `frontend/lib/features/reader/data/dictionary_api.dart` — `lookupWord` + optional `createEntry` / `upsertEntry` for dev tooling
+- `frontend/lib/features/reader/presentation/reader_page.dart` — double-tap / double-click → `dictionaryHint` JS handler; overlay card; scroll → dismiss via `dictionaryDismiss`
+- `frontend/lib/features/vault/application/vault_provider.dart` — `dictionaryApiProvider`
+- `frontend/lib/features/vault/presentation/vault_page.dart` — word detail uses `DictionaryApi` with loading state
+- `backend/app/api/dictionary_routes.py` — CRUD-style routes for managing entries during development
+- `backend/app/services/dictionary_service.py` — create, upsert, patch, delete
+
+**Gesture note (aligned with PRD F02 vs F07):**
+- **Long-press (~480ms)** on a word → silent ghost capture to Vault (same payload as before).
+- **Double-tap** (touch) or **double-click** (desktop WebView) → dictionary hint only (no capture).
 
 **Behavior:**
-- If backend returns a definition → show it in the tooltip
+- If backend returns a definition → show it in the reader overlay and in Vault details
 - If offline or word not found → show "No hint available" gracefully (never crash)
+- Dictionary rows are populated via dev `POST`/`PUT` until a bundled WordNet pipeline exists
 
 ---
 
-## 📋 Documentation Updates Required
+## Documentation status (living docs)
 
-### `pro_docs/Plan.md` — Changes
-- **Phase 0:** Add note that FastAPI is a **developer-only tool**. Users never interact with it. It is not deployed.
-- **Phase 1 (Task 1.5):** Clarify that `drift` SQLite in Flutter is for **EPUB asset caching and offline queues only** during development. When FastAPI is deprecated for production, `drift` becomes the full data layer.
-- **Phase 3 (Task 3.8):** Change "write async SQLite INSERT" → "call `POST /v1/highlights` asynchronously. On failure, add to offline queue in SharedPreferences."
-- **Phase 5:** SM-2 SRS algorithm lives in `game_service.py` / `srs_service.py` during development, and will be ported 1:1 to `srs_repository.dart` before App Store submission.
+The bullets below were a migration checklist; they are now **folded into** `Plan.md`, `backend.md`, `PRD.md`, and this plan where still relevant.
 
-### `pro_docs/backend.md` — Changes
-- **Section 3 (User Identity):** Add that a `/login` endpoint has been implemented. It finds an existing profile by username. Password auth deferred to cloud sync phase.
-- **Section 9 (Games):** Update to reflect the two finalized game types (`cloze` = "Complete the Sentence", `meaning_match` = "Match the Word") and add gamification fields: `combo_multiplier`, `xp_earned`, `response_time_ms`.
-- **Section 12 (Data Model):** Add the three new fields to `review_events`.
-- **Section 15 (Implementation Phases):** Add a **Phase 0.5: Development-to-Production Migration** section explaining the drift transition checklist above.
-- **Section 16 (Non-Goals):** Add: "FastAPI is not the production delivery mechanism. It is a development and inspection tool. The production app uses drift (Flutter SQLite)."
+### `pro_docs/Plan.md`
+- ✅ **Phase 0:** FastAPI called out as developer-only (see Plan Phase 0 intro).
+- ✅ **Phase 1 (Task 1.5):** Drift note for dev vs production (see Plan Task 1.5).
+- ✅ **Phase 3 (Task 3.8):** Highlights via `POST /v1/highlights` + offline queue (see Plan Task 3.8).
+- ✅ **Phase 5 / Epic 5:** SM-2 note pointing at `game_service.py` / `srs_service.py` (see Plan Epic 5 Task 5.1).
+
+### `pro_docs/backend.md`
+- ✅ **Section 3:** `/login` username profile (see backend §3).
+- ✅ **Section 9:** Two game types + gamification fields on answers (see backend §9).
+- ✅ **Section 12 / model:** `review_events` combo / XP / response time (see backend data model sections).
+- ✅ **Dictionary:** `GET` + dev `POST`/`PUT`/`PATCH`/`DELETE` `/v1/dictionary` (see backend §8 and §13).
+- **Section 15 / 16:** Add explicit “Phase 0.5 drift migration” + non-goals paragraph if you want a single canonical migration narrative (optional polish).
 
 ---
 
@@ -289,4 +303,6 @@ These were originally part of later polish in Phase 4+, but are implemented now 
 | **Match the Word** | Start game → words + definitions from vault, not hardcoded options |
 | **Combo/XP** | Answer 3 in a row correctly → combo should show x3 and XP should increase |
 | **Home Dashboard** | Sign in → home shows Books/Vault/Due counts, resume card matches last saved progress, “Latest captures” lists last 5 words with book titles; after a game round, Due count updates when you return home |
-| **Dictionary Hint** | Double-tap a word while reading → tooltip shows definition from backend |
+| **Dictionary Hint** | Double-tap (or double-click) a word while reading → overlay shows definition/synonyms from `GET /v1/dictionary/{word}`; scroll dismisses the hint |
+| **Dictionary seed (dev)** | `POST /v1/dictionary` with JSON `word`, `definition`, optional `synonyms`, `example_sentence`, `source` → Vault details and reader hint return that entry |
+| **Ghost capture gesture** | Long-press a word (~0.5s) until shimmer → word appears in Vault |

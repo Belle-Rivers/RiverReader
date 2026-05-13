@@ -83,6 +83,7 @@ To achieve fluency, a user must consume high volumes of "Comprehensible Input" (
 * **API:** Call a local WordNet dictionary or a lightweight English-English API.
 * **UI:** A transient, non-modal tooltip that disappears as soon as the user scrolls or taps elsewhere.
 * **Rule:** No translations. Only synonyms (e.g., "Meticulous" -> "Very careful; detailed").
+* **Implementation (MVP / dev backend + Flutter):** ✅ `GET /v1/dictionary/{word}` powers the reader hint overlay and Vault word details. Dev-only write APIs (`POST` / `PUT` / `PATCH` / `DELETE` `/v1/dictionary`) seed `dictionary_entries` until the offline WordNet bundle ships. Reader **double-tap** requests a hint; **long-press** performs silent Vault capture so the two gestures do not collide.
 
 ### [F08] "Scholar" UI Themes (P1)
 * **Sunlight:** `#F1F0CC` Background / `#1F1B14` Text.

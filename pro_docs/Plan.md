@@ -116,12 +116,14 @@
 
 *   **Task 6.1:** Compress a subset of the English WordNet database (Synonyms and short definitions) into a pre-packaged SQLite `.db` file (~15MB).
 *   **Task 6.2:** Implement an initialization script to copy the dictionary `.db` from the app bundle to the active local directory on first launch.
-*   **Task 6.3:** Build a lightweight querying service to fetch synonyms based on the exact string match of the highlighted word.
-*   **Task 6.4:** Write JS logic to detect a "Double-Tap" gesture on a word inside the EPUB reader.
-*   **Task 6.5:** Develop a transient Flutter Tooltip/Overlay UI for the "Emergency Synonym" that sits immediately above the selected word.
-*   **Task 6.6:** Implement logic to auto-dismiss the tooltip upon any scroll event or tap outside the overlay.
+*   ✅ **Task 6.3 (dev path):** Lightweight dictionary lookup from Flutter via `GET /v1/dictionary/{word}` (`DictionaryApi`) — shared by Vault details and the reader hint overlay.
+*   ✅ **Task 6.4:** Double-tap / double-click detection on words inside the EPUB reader WebView triggers the dictionary hint (long-press remains the silent Vault capture gesture).
+*   ✅ **Task 6.5:** Transient reader overlay (definition + synonyms, loading state, close control).
+*   ✅ **Task 6.6:** Hint dismisses on WebView scroll (JS → Flutter), timeout (~8s), or explicit close.
 *   **Task 6.7:** Connect the offline dictionary querying service to the "Reveal Logic" in the Restoration Game.
 *   **Task 6.8:** Implement the "Silent Onboarding" UI flow (3-slide carousel) to set user expectations before granting access to the main app interface.
+
+**Dev backend:** Use `POST` / `PUT` `/v1/dictionary` to seed words you care about until Tasks 6.1–6.2 ship.
 
 ---
 

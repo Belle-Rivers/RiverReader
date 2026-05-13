@@ -70,7 +70,7 @@ def _meaning_match_deck(
     """Build one match round: several words share the same shuffled definition list."""
     pairs: list[tuple[SrsItem, Highlight, str]] = []
     for srs_item, highlight in rows:
-        dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
         definition = dictionary_entry.definition if dictionary_entry else None
         meaning = (definition or (highlight.context_sentence or "").strip())
         if not meaning:
@@ -86,7 +86,7 @@ def _meaning_match_deck(
     out: list[GameDeckItemRead] = []
     for srs_item, highlight, meaning in pairs:
         book = session.get(Book, highlight.book_id)
-        dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
         entry_def = dictionary_entry.definition if dictionary_entry else None
         out.append(
             GameDeckItemRead(
@@ -112,7 +112,7 @@ def _meaning_match_single(
     meaning: str,
 ) -> GameDeckItemRead:
     book = session.get(Book, highlight.book_id)
-    dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+    dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
     entry_def = dictionary_entry.definition if dictionary_entry else None
     choices = _meaning_choices(session, user_id, highlight.target_word, meaning)
     return GameDeckItemRead(
@@ -136,7 +136,7 @@ def _build_item(
 ) -> GameDeckItemRead:
     book = session.get(Book, highlight.book_id)
     definition = None
-    dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+    dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
     if dictionary_entry is not None:
         definition = dictionary_entry.definition
 

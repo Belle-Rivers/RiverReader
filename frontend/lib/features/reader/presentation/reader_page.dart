@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -11,6 +13,7 @@ import '../../vault/data/highlight_api.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../vault/application/vault_provider.dart';
 import '../controllers/reader_controller.dart';
+import '../data/dictionary_api.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({
@@ -28,6 +31,8 @@ class ReaderPage extends ConsumerStatefulWidget {
 
 class _ReaderPageState extends ConsumerState<ReaderPage> {
   static const String _ghostCaptureHandlerName = 'ghostCapture';
+  static const String _dictionaryHintHandlerName = 'dictionaryHint';
+  static const String _dictionaryDismissHandlerName = 'dictionaryDismiss';
   static const double _minReaderFontSize = 14;
   static const double _maxReaderFontSize = 28;
   InAppWebViewController? _webViewController;
@@ -38,6 +43,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   double _progressPercent = 0;
   bool _isChapterLoading = true;
   String? _chapterLoadError;
+  _ReaderDictHint? _dictHint;
+  Timer? _dictHintTimer;
 
   @override
   void initState() {
@@ -47,6 +54,80 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _showCaptureFeedback() {
     HapticFeedback.lightImpact();
+  }
+
+  @override
+  void dispose() {
+    _dictHintTimer?.cancel();
+    super.dispose();
+  }
+
+  void _dismissDictHint() {
+    _dictHintTimer?.cancel();
+    _dictHintTimer = null;
+    if (_dictHint != null && mounted) {
+      setState(() => _dictHint = null);
+    }
+  }
+
+  void _scheduleDictHintDismiss() {
+    _dictHintTimer?.cancel();
+    _dictHintTimer = Timer(const Duration(seconds: 8), _dismissDictHint);
+  }
+
+  Future<void> _handleDictionaryHintPayload(Map<String, dynamic> payload) async {
+    final Object? wordRaw = payload['target_word'];
+    final Object? yRaw = payload['client_y'];
+    if (wordRaw is! String || wordRaw.isEmpty) {
+      return;
+    }
+    final double anchorY = yRaw is num ? yRaw.toDouble() : 48;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _dictHint = _ReaderDictHint(
+        word: wordRaw,
+        anchorY: anchorY,
+        loading: true,
+        body: '',
+      );
+    });
+    _scheduleDictHintDismiss();
+    try {
+      final DictionaryEntryModel? entry =
+          await ref.read(dictionaryApiProvider).lookupWord(wordRaw);
+      if (!mounted) {
+        return;
+      }
+      final String body = entry == null
+          ? 'No hint available.'
+          : entry.synonyms.isEmpty
+              ? entry.definition
+              : '${entry.definition}\n\nSynonyms: ${entry.synonyms.join(', ')}';
+      setState(() {
+        _dictHint = _ReaderDictHint(
+          word: wordRaw,
+          anchorY: anchorY,
+          loading: false,
+          body: body,
+        );
+      });
+      _scheduleDictHintDismiss();
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _dictHint = _ReaderDictHint(
+          word: wordRaw,
+          anchorY: anchorY,
+          loading: false,
+          body: 'No hint available.',
+        );
+      });
+      _scheduleDictHintDismiss();
+    }
   }
   HighlightCreateModel? _buildHighlightFromBridgePayload({
     required String userId,
@@ -370,23 +451,63 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         window.flutter_inappwebview.callHandler('$_ghostCaptureHandlerName', payload);
       }
     }
-    function captureWordAt(clientX, clientY) {
+    function sendDictionaryHint(word, clientX, clientY) {
+      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        window.flutter_inappwebview.callHandler('$_dictionaryHintHandlerName', {
+          target_word: word,
+          client_x: clientX,
+          client_y: clientY,
+        });
+      }
+    }
+    function hintWordAt(clientX, clientY) {
       const root = document.getElementById('chapter-root');
       if (!root) return;
       const range = rangeFromPoint(clientX, clientY);
       if (!range) return;
       const extracted = extractWordAtCaret(range);
       if (!extracted) return;
-      const chapterPlainText = cleanSpaces(root.innerText || '');
-      if (!chapterPlainText) return;
-      sendGhostCapture(
-        extracted.word,
-        chapterPlainText,
-        extracted.glowParent,
-        getCfiFallbackFromRange(range)
-      );
+      sendDictionaryHint(extracted.word, clientX, clientY);
     }
-    (function attachDoubleTapGhost() {
+    (function attachLongPressGhost() {
+      const root = document.getElementById('chapter-root');
+      if (!root) return;
+      const HOLD_MS = 480;
+      const MOVE_MAX = 14;
+      let timer = null;
+      let startX = 0;
+      let startY = 0;
+      let downState = null;
+      function clearTimer() {
+        if (timer) { clearTimeout(timer); timer = null; }
+      }
+      root.addEventListener('pointerdown', function(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        clearTimer();
+        startX = e.clientX;
+        startY = e.clientY;
+        const range = rangeFromPoint(e.clientX, e.clientY);
+        const extracted = extractWordAtCaret(range);
+        if (!extracted) { downState = null; return; }
+        downState = { word: extracted.word, glowParent: extracted.glowParent, range: range };
+        timer = setTimeout(function() {
+          timer = null;
+          const st = downState;
+          if (!st) return;
+          const chapterPlainText = cleanSpaces(root.innerText || '');
+          if (!chapterPlainText) return;
+          sendGhostCapture(st.word, chapterPlainText, st.glowParent, getCfiFallbackFromRange(st.range));
+          downState = null;
+        }, HOLD_MS);
+      }, { passive: true });
+      root.addEventListener('pointermove', function(e) {
+        if (!timer) return;
+        if (Math.hypot(e.clientX - startX, e.clientY - startY) > MOVE_MAX) clearTimer();
+      }, { passive: true });
+      root.addEventListener('pointerup', function() { clearTimer(); downState = null; }, { passive: true });
+      root.addEventListener('pointercancel', function() { clearTimer(); downState = null; }, { passive: true });
+    })();
+    (function attachDoubleTapHint() {
       const root = document.getElementById('chapter-root');
       if (!root) return;
       let lastTapTime = 0;
@@ -403,7 +524,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         if (now - lastTapTime < DOUBLE_MS &&
             Math.hypot(x - lastTapX, y - lastTapY) < DOUBLE_DIST) {
           lastTapTime = 0;
-          captureWordAt(x, y);
+          hintWordAt(x, y);
         } else {
           lastTapTime = now;
           lastTapX = x;
@@ -412,8 +533,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       }, { passive: true });
       root.addEventListener('dblclick', function(e) {
         e.preventDefault();
-        captureWordAt(e.clientX, e.clientY);
+        hintWordAt(e.clientX, e.clientY);
       });
+    })();
+    (function attachScrollDismissHint() {
+      function postDismiss() {
+        if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+          window.flutter_inappwebview.callHandler('$_dictionaryDismissHandlerName', {});
+        }
+      }
+      window.addEventListener('scroll', postDismiss, true);
+      document.addEventListener('scroll', postDismiss, true);
     })();
   </script>
 </body>
@@ -523,52 +653,143 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : _chapterLoadError != null
                       ? Center(child: Text(_chapterLoadError!))
-                      : InAppWebView(
-                          key: ValueKey<int>(_activeChapterIndex),
-                          initialData: InAppWebViewInitialData(
-                            data: _buildReaderHtml(
-                              chapterHtml: _chapterHtml ?? '',
-                              chapterTitle: _activeChapterTitle ?? 'Chapter ${_activeChapterIndex + 1}',
-                              textColorHex: readerTextHex,
-                              backgroundColorHex: readerBackgroundHex,
+                      : Stack(
+                          clipBehavior: Clip.none,
+                          children: <Widget>[
+                            Positioned.fill(
+                              child: InAppWebView(
+                                key: ValueKey<int>(_activeChapterIndex),
+                                initialData: InAppWebViewInitialData(
+                                  data: _buildReaderHtml(
+                                    chapterHtml: _chapterHtml ?? '',
+                                    chapterTitle: _activeChapterTitle ??
+                                        'Chapter ${_activeChapterIndex + 1}',
+                                    textColorHex: readerTextHex,
+                                    backgroundColorHex: readerBackgroundHex,
+                                  ),
+                                  mimeType: 'text/html',
+                                  encoding: 'utf-8',
+                                ),
+                                initialSettings: InAppWebViewSettings(
+                                  javaScriptEnabled: true,
+                                  disableContextMenu: true,
+                                  transparentBackground: true,
+                                ),
+                                onWebViewCreated: (InAppWebViewController controller) {
+                                  _webViewController = controller;
+                                  controller.addJavaScriptHandler(
+                                    handlerName: _ghostCaptureHandlerName,
+                                    callback: (List<dynamic> args) {
+                                      final String? userId =
+                                          ref.read(sessionUserIdProvider);
+                                      if (userId == null || args.isEmpty) {
+                                        return;
+                                      }
+                                      final dynamic firstArg = args.first;
+                                      if (firstArg is! Map) {
+                                        return;
+                                      }
+                                      final Map<String, dynamic> payload =
+                                          Map<String, dynamic>.from(firstArg);
+                                      final HighlightCreateModel? highlight =
+                                          _buildHighlightFromBridgePayload(
+                                        userId: userId,
+                                        bookId: widget.bookId,
+                                        payload: payload,
+                                      );
+                                      if (highlight == null) {
+                                        return;
+                                      }
+                                      _showCaptureFeedback();
+                                      _captureHighlightSilently(
+                                        ref: ref,
+                                        highlight: highlight,
+                                      );
+                                    },
+                                  );
+                                  controller.addJavaScriptHandler(
+                                    handlerName: _dictionaryHintHandlerName,
+                                    callback: (List<dynamic> args) {
+                                      if (args.isEmpty) {
+                                        return;
+                                      }
+                                      final dynamic firstArg = args.first;
+                                      if (firstArg is! Map) {
+                                        return;
+                                      }
+                                      final Map<String, dynamic> payload =
+                                          Map<String, dynamic>.from(firstArg);
+                                      unawaited(_handleDictionaryHintPayload(payload));
+                                    },
+                                  );
+                                  controller.addJavaScriptHandler(
+                                    handlerName: _dictionaryDismissHandlerName,
+                                    callback: (_) {
+                                      _dismissDictHint();
+                                    },
+                                  );
+                                  unawaited(_applyReaderFontSize());
+                                },
+                                onLoadStop: (_, __) {
+                                  unawaited(_applyReaderFontSize());
+                                },
+                              ),
                             ),
-                            mimeType: 'text/html',
-                            encoding: 'utf-8',
-                          ),
-                          initialSettings: InAppWebViewSettings(
-                            javaScriptEnabled: true,
-                            disableContextMenu: true,
-                            transparentBackground: true,
-                          ),
-                          onWebViewCreated: (InAppWebViewController controller) {
-                            _webViewController = controller;
-                            controller.addJavaScriptHandler(
-                              handlerName: _ghostCaptureHandlerName,
-                              callback: (List<dynamic> args) {
-                                final String? userId = ref.read(sessionUserIdProvider);
-                                if (userId == null || args.isEmpty) return;
-                                final dynamic firstArg = args.first;
-                                if (firstArg is! Map) return;
-                                final payload = Map<String, dynamic>.from(firstArg);
-                                final HighlightCreateModel? highlight =
-                                    _buildHighlightFromBridgePayload(
-                                  userId: userId,
-                                  bookId: widget.bookId,
-                                  payload: payload,
-                                );
-                                if (highlight == null) return;
-                                _showCaptureFeedback();
-                                _captureHighlightSilently(
-                                  ref: ref,
-                                  highlight: highlight,
-                                );
-                              },
-                            );
-                            unawaited(_applyReaderFontSize());
-                          },
-                          onLoadStop: (_, __) {
-                            unawaited(_applyReaderFontSize());
-                          },
+                            if (_dictHint != null)
+                              Positioned(
+                                left: 12,
+                                right: 12,
+                                top: math.min(
+                                  math.max(8, _dictHint!.anchorY - 72),
+                                  320,
+                                ),
+                                child: Material(
+                                  elevation: 6,
+                                  borderRadius: BorderRadius.circular(12),
+                                  color: theme.colorScheme.surfaceContainerHighest,
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(14, 10, 6, 12),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: <Widget>[
+                                        Row(
+                                          children: <Widget>[
+                                            Expanded(
+                                              child: Text(
+                                                _dictHint!.word,
+                                                style: theme.textTheme.titleMedium,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              onPressed: _dismissDictHint,
+                                              icon: const Icon(Icons.close_rounded),
+                                              tooltip: 'Dismiss',
+                                            ),
+                                          ],
+                                        ),
+                                        if (_dictHint!.loading)
+                                          const Padding(
+                                            padding: EdgeInsets.symmetric(vertical: 12),
+                                            child: Center(
+                                              child: SizedBox(
+                                                width: 28,
+                                                height: 28,
+                                                child: CircularProgressIndicator(strokeWidth: 2),
+                                              ),
+                                            ),
+                                          )
+                                        else
+                                          Text(
+                                            _dictHint!.body,
+                                            style: theme.textTheme.bodyMedium,
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
             ),
             Container(
@@ -608,4 +829,18 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       ),
     );
   }
+}
+
+class _ReaderDictHint {
+  const _ReaderDictHint({
+    required this.word,
+    required this.anchorY,
+    required this.loading,
+    required this.body,
+  });
+
+  final String word;
+  final double anchorY;
+  final bool loading;
+  final String body;
 }

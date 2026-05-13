@@ -186,7 +186,23 @@ class DictionaryEntryRead(BaseModel):
     word: str
     definition: str
     synonyms: list[str] = Field(default_factory=list)
+    example_sentence: str | None = None
     source: str | None
+
+
+class DictionaryEntryCreate(BaseModel):
+    word: str = Field(min_length=1, max_length=128)
+    definition: str = Field(min_length=1)
+    synonyms: list[str] = Field(default_factory=list)
+    example_sentence: str | None = Field(default=None, max_length=2048)
+    source: str | None = Field(default=None, max_length=128)
+
+
+class DictionaryEntryUpdate(BaseModel):
+    definition: str | None = Field(default=None, min_length=1)
+    synonyms: list[str] | None = None
+    example_sentence: str | None = Field(default=None, max_length=2048)
+    source: str | None = Field(default=None, max_length=128)
 
 
 class AiRequest(BaseModel):

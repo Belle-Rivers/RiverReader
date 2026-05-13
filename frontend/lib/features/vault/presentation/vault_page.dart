@@ -6,6 +6,7 @@ import '../../../core/widgets/river_ui.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../library/controllers/library_shelf_controller.dart';
 import '../../library/data/book_api.dart';
+import '../../reader/data/dictionary_api.dart';
 import '../application/vault_provider.dart';
 import '../data/vault_api.dart';
 
@@ -241,55 +242,11 @@ class _VaultPageState extends ConsumerState<VaultPage> {
   }
 
   Future<void> _openWordDetails(VaultItemRead item) async {
-    final DictionaryEntryModel? entry =
-        await ref.read(vaultApiProvider).getDictionaryEntry(item.targetWord);
-    if (!mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (context) {
-        final theme = Theme.of(context);
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.targetWord, style: theme.textTheme.headlineMedium),
-                  const SizedBox(height: 10),
-                  Text(
-                    entry?.definition ?? 'No definition found yet.',
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 12),
-                  if (entry != null && entry.synonyms.isNotEmpty)
-                    Text(
-                      'Synonyms: ${entry.synonyms.join(', ')}',
-                      style: theme.textTheme.bodyLarge,
-                    ),
-                  const SizedBox(height: 12),
-                  Text('Where it was mentioned', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 6),
-                  Text(item.contextSentence, style: theme.textTheme.bodyLarge),
-                  if (item.contextBefore != null) ...[
-                    const SizedBox(height: 6),
-                    Text('Before: ${item.contextBefore}', style: theme.textTheme.bodyMedium),
-                  ],
-                  if (item.contextAfter != null) ...[
-                    const SizedBox(height: 6),
-                    Text('After: ${item.contextAfter}', style: theme.textTheme.bodyMedium),
-                  ],
-                  const SizedBox(height: 6),
-                  Text(
-                    'Book: ${item.bookTitle ?? 'Unknown'} · Chapter: ${item.chapterTitle ?? '-'}',
-                    style: theme.textTheme.bodyMedium,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
+      builder: (BuildContext sheetContext) {
+        return _VaultWordDetailSheet(item: item);
       },
     );
   }
@@ -324,6 +281,104 @@ class _VaultPageState extends ConsumerState<VaultPage> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to delete word: $e')));
     }
+  }
+}
+
+class _VaultWordDetailSheet extends ConsumerStatefulWidget {
+  const _VaultWordDetailSheet({required this.item});
+
+  final VaultItemRead item;
+
+  @override
+  ConsumerState<_VaultWordDetailSheet> createState() => _VaultWordDetailSheetState();
+}
+
+class _VaultWordDetailSheetState extends ConsumerState<_VaultWordDetailSheet> {
+  late Future<DictionaryEntryModel?> _dictionaryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _dictionaryFuture =
+        ref.read(dictionaryApiProvider).lookupWord(widget.item.targetWord);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final VaultItemRead item = widget.item;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.targetWord, style: theme.textTheme.headlineMedium),
+              const SizedBox(height: 10),
+              FutureBuilder<DictionaryEntryModel?>(
+                future: _dictionaryFuture,
+                builder: (BuildContext context, AsyncSnapshot<DictionaryEntryModel?> snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (snapshot.hasError) {
+                    return Text(
+                      'Could not load dictionary entry.',
+                      style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.error),
+                    );
+                  }
+                  final DictionaryEntryModel? entry = snapshot.data;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry?.definition ?? 'No hint in dictionary yet. Add entries via POST /v1/dictionary on the dev backend.',
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                      if (entry != null && entry.synonyms.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          'Synonyms: ${entry.synonyms.join(', ')}',
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                      ],
+                      if (entry?.exampleSentence != null &&
+                          entry!.exampleSentence!.trim().isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text('Example', style: theme.textTheme.titleSmall),
+                        const SizedBox(height: 4),
+                        Text(entry.exampleSentence!, style: theme.textTheme.bodyMedium),
+                      ],
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              Text('Where it was mentioned', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 6),
+              Text(item.contextSentence, style: theme.textTheme.bodyLarge),
+              if (item.contextBefore != null) ...[
+                const SizedBox(height: 6),
+                Text('Before: ${item.contextBefore}', style: theme.textTheme.bodyMedium),
+              ],
+              if (item.contextAfter != null) ...[
+                const SizedBox(height: 6),
+                Text('After: ${item.contextAfter}', style: theme.textTheme.bodyMedium),
+              ],
+              const SizedBox(height: 6),
+              Text(
+                'Book: ${item.bookTitle ?? 'Unknown'} · Chapter: ${item.chapterTitle ?? '-'}',
+                style: theme.textTheme.bodyMedium,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

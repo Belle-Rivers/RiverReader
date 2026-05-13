@@ -54,25 +54,6 @@ class VaultItemRead {
   }
 }
 
-class DictionaryEntryModel {
-  const DictionaryEntryModel({
-    required this.word,
-    required this.definition,
-    required this.synonyms,
-  });
-  final String word;
-  final String definition;
-  final List<String> synonyms;
-  factory DictionaryEntryModel.fromJson(Map<String, dynamic> json) {
-    final List<dynamic> rawSynonyms = (json['synonyms'] as List<dynamic>?) ?? <dynamic>[];
-    return DictionaryEntryModel(
-      word: json['word'] as String,
-      definition: json['definition'] as String,
-      synonyms: rawSynonyms.map((dynamic item) => item.toString()).toList(),
-    );
-  }
-}
-
 class VaultApi {
   VaultApi({http.Client? client}) : _client = client ?? http.Client();
 
@@ -117,19 +98,5 @@ class VaultApi {
     if (response.statusCode != 204) {
       throw Exception('Failed to delete vault item');
     }
-  }
-
-  Future<DictionaryEntryModel?> getDictionaryEntry(String word) async {
-    final String safeWord = Uri.encodeComponent(word.trim());
-    if (safeWord.isEmpty) return null;
-    final Uri url = Uri.parse('$_defaultBaseUrl/v1/dictionary/$safeWord');
-    final http.Response response = await _client.get(url);
-    if (response.statusCode == 404) return null;
-    if (response.statusCode != 200) {
-      throw Exception('Failed to load dictionary entry');
-    }
-    final Map<String, dynamic> json =
-        jsonDecode(response.body) as Map<String, dynamic>;
-    return DictionaryEntryModel.fromJson(json);
   }
 }

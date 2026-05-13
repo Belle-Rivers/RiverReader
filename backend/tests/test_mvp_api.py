@@ -264,3 +264,48 @@ def test_empty_game_deck_dictionary_and_ai_cache(client: TestClient) -> None:
     assert cached.status_code == 200
     assert cached.json()["cached"] is True
     assert cached.json()["payload"] == {"definition": "Cached value"}
+
+
+def test_dictionary_admin_crud(client: TestClient) -> None:
+    assert client.get("/v1/dictionary/epoch").status_code == 404
+    create_body = {
+        "word": "epoch",
+        "definition": "A period of time.",
+        "synonyms": ["era", "age"],
+        "example_sentence": "We live in a digital epoch.",
+        "source": "manual",
+    }
+    created = client.post("/v1/dictionary", json=create_body)
+    assert created.status_code == 201
+    assert created.json()["word"] == "epoch"
+    assert created.json()["definition"] == "A period of time."
+    assert created.json()["synonyms"] == ["era", "age"]
+    assert created.json()["example_sentence"] == "We live in a digital epoch."
+    assert client.post("/v1/dictionary", json=create_body).status_code == 409
+    assert client.get("/v1/dictionary/EPOCH").status_code == 200
+    patched = client.patch(
+        "/v1/dictionary/epoch",
+        json={"definition": "A distinctive period."},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["definition"] == "A distinctive period."
+    upsert = client.put(
+        "/v1/dictionary/epoch",
+        json={
+            "word": "epoch",
+            "definition": "Put replaced.",
+            "synonyms": ["time"],
+            "source": "put",
+        },
+    )
+    assert upsert.status_code == 200
+    assert upsert.json()["definition"] == "Put replaced."
+    assert upsert.json()["synonyms"] == ["time"]
+    assert client.delete("/v1/dictionary/epoch").status_code == 204
+    assert client.get("/v1/dictionary/epoch").status_code == 404
+    new_put = client.put(
+        "/v1/dictionary/nova",
+        json={"word": "nova", "definition": "A star outburst."},
+    )
+    assert new_put.status_code == 200
+    assert new_put.json()["word"] == "nova"
