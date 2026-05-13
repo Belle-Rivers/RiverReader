@@ -119,6 +119,10 @@ def test_home_summary_and_cors(client: TestClient) -> None:
     }
     assert payload["last_opened_book"]["id"] == book["id"]
     assert payload["last_progress"]["progress_percent"] == 12.25
+    recent = payload["recent_vault_words"]
+    assert isinstance(recent, list) and len(recent) >= 1
+    assert recent[0]["target_word"] == "serene"
+    assert recent[0]["book_title"] is not None
 
     preflight = client.options(
         "/v1/users/register",

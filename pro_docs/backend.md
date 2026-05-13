@@ -190,8 +190,8 @@ Frontend sends progress updates when:
 
 Homepage calls:
 
-- `GET /v1/me/home`
-- or `GET /v1/books/{book_id}/progress`
+- `GET /v1/me/home?user_id=…` — **implemented:** returns `user`, `stats` (`books_count`, `vault_count`, `due_reviews_count`), `last_opened_book`, `last_progress`, and `recent_vault_words` (last five highlights, newest first, with `book_title` / `book_author` for UI).
+- `GET /v1/books/{book_id}/progress`
 
 Backend returns the last active book and CFI. Frontend opens the reader and asks Epub.js to navigate to that CFI.
 
@@ -257,6 +257,11 @@ This is what makes later games feel personal instead of generic.
 
 The Vault is the user's collection of captured words.
 
+### Highlights vs Vault (API shape)
+
+- **`POST /v1/highlights`** is how the app **adds** a word to the Vault. The backend persists a highlight row (target word, context, CFI, chapter metadata, user, book). That row is what games and SRS build on.
+- **`GET /v1/vault`** (and **`GET /v1/vault/search`**) are **read-only** views of the same captured data: a list or search tuned for the Vault UI. There is no `POST /v1/vault` by design—creating a highlight is the write path; the Vault endpoints only query.
+
 Backend responsibilities:
 
 - list captured words,
@@ -292,11 +297,10 @@ Games are optional reinforcement, not the core reading experience. The backend s
 ### Existing MVP games from frontend
 
 1. **Match Word with Meaning** (`meaning_match`)
-   - Backend selects one highlighted word.
-   - Backend provides the correct meaning.
-   - Backend provides 2-3 distractor meanings from other Vault words or dictionary entries.
-   - Frontend renders choices.
-   - User answer is posted back for scoring/SRS.
+   - Backend selects several highlights (one round, e.g. five pairs) and returns one row per word.
+   - Each row shares the same shuffled `choices[]` list: the definitions for every word in that round (no extra distractors when there are multiple pairs—pairing is the challenge).
+   - Frontend shows a **word grid** and a **definition list**; the user taps a word then its meaning. Each correct match posts `POST /v1/games/answer` with `response_time_ms` and gamification fields.
+   - Wrong pairing applies a **time penalty** on the client (e.g. −3 seconds); SRS is not updated until a correct match.
 
 2. **Complete the Sentence** (`cloze`)
    - Backend selects one highlight.
@@ -338,7 +342,7 @@ For MVP, prioritize:
 
 1. Frontend requests due game items.
 2. Backend returns a mixed deck based on SRS and recency.
-3. Frontend displays one card at a time.
+3. Frontend renders by game type: **cloze** shows one sentence card at a time; **meaning_match** shows one round (several words + a shuffled definition list) until all pairs are matched.
 4. Frontend posts result:
    - correct/incorrect,
    - selected answer,
@@ -468,7 +472,7 @@ All product endpoints are versioned under `/v1`.
 - `GET /v1/users/{user_id}`
 - `PATCH /v1/users/{user_id}`
 - `DELETE /v1/users/{user_id}`
-- `GET /v1/me/home` (later, when active-user/session handling exists)
+- `GET /v1/me/home?user_id=…` (MVP: `user_id` query param; returns dashboard payload including `recent_vault_words`)
 
 ### Books and progress
 

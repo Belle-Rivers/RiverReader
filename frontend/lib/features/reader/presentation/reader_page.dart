@@ -45,14 +45,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     Future<void>.microtask(_initializeReader);
   }
 
-  void _showCaptureFeedback(BuildContext context) {
+  void _showCaptureFeedback() {
     HapticFeedback.lightImpact();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('✨ Word captured silently!'),
-        duration: Duration(milliseconds: 900),
-      ),
-    );
   }
   HighlightCreateModel? _buildHighlightFromBridgePayload({
     required String userId,
@@ -199,11 +193,11 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }
   String _readerTextColorHex(BuildContext context) {
     final Color textColor = Theme.of(context).colorScheme.onSurface;
-    return '#${textColor.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+    return '#${textColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
   }
   String _readerBackgroundColorHex(BuildContext context) {
     final Color backgroundColor = Theme.of(context).scaffoldBackgroundColor;
-    return '#${backgroundColor.value.toRadixString(16).padLeft(8, '0').substring(2)}';
+    return '#${backgroundColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
   }
   Future<void> _goToPreviousChapter() async {
     if (_activeChapterIndex <= 0) return;
@@ -294,14 +288,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         after: matchIndex < sentences.length - 1 ? sentences[matchIndex + 1] : null,
       };
     }
-    function getCurrentCfiFallback() {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return null;
-      const range = selection.getRangeAt(0);
+    function getCfiFallbackFromRange(range) {
+      if (!range) return null;
       const container = range.startContainer;
       let node = container.nodeType === 3 ? container.parentElement : container;
       if (!node) return null;
-      let path = [];
+      const path = [];
       while (node && node !== document.body) {
         let index = 0;
         let sibling = node;
@@ -314,33 +306,115 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       }
       return 'domcfi(' + path.join('/') + ')';
     }
-    document.addEventListener('mouseup', function() {
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-      const selectedWord = cleanSpaces(selection.toString());
-      if (!selectedWord || selectedWord.includes(' ')) return;
-      const range = selection.getRangeAt(0);
-      const selectedText = cleanSpaces(range.commonAncestorContainer.textContent || document.body.innerText);
-      const context = findSentenceContext(selectedWord, selectedText);
-      const parent = range.startContainer.parentElement;
-      if (parent) {
-        parent.classList.add('ghost-captured');
-        setTimeout(() => parent.classList.remove('ghost-captured'), 450);
+    function rangeFromPoint(x, y) {
+      if (document.caretRangeFromPoint) {
+        return document.caretRangeFromPoint(x, y);
+      }
+      if (document.caretPositionFromPoint) {
+        const pos = document.caretPositionFromPoint(x, y);
+        if (!pos || !pos.offsetNode) return null;
+        const r = document.createRange();
+        try {
+          const max = (pos.offsetNode.textContent || '').length;
+          const off = Math.min(Math.max(0, pos.offset), max);
+          r.setStart(pos.offsetNode, off);
+          r.setEnd(pos.offsetNode, off);
+        } catch (e) {
+          return null;
+        }
+        return r;
+      }
+      return null;
+    }
+    function isWordChar(c) {
+      if (!c) return false;
+      if (/[\\s\\u00A0]/.test(c)) return false;
+      if (/[.,;:!?'"()\\[\\]{}…—–]/.test(c)) return false;
+      return true;
+    }
+    function extractWordAtCaret(range) {
+      if (!range) return null;
+      let node = range.startContainer;
+      let offset = range.startOffset;
+      if (node.nodeType !== 3) return null;
+      const text = node.textContent || '';
+      if (text.length === 0) return null;
+      offset = Math.min(Math.max(0, offset), text.length);
+      if (offset < text.length && !isWordChar(text[offset]) && offset > 0) {
+        offset -= 1;
+      }
+      let i = offset;
+      while (i > 0 && isWordChar(text[i - 1])) i--;
+      let j = offset;
+      while (j < text.length && isWordChar(text[j])) j++;
+      const word = cleanSpaces(text.slice(i, j));
+      if (!word || word.length > 64) return null;
+      return { word: word, textNode: node, glowParent: node.parentElement };
+    }
+    function sendGhostCapture(word, chapterPlainText, glowParent, cfi) {
+      const context = findSentenceContext(word, chapterPlainText);
+      if (glowParent) {
+        glowParent.classList.add('ghost-captured');
+        setTimeout(function() { glowParent.classList.remove('ghost-captured'); }, 450);
       }
       const payload = {
-        target_word: selectedWord,
-        context_sentence: context.sentence || selectedText,
+        target_word: word,
+        context_sentence: context.sentence || chapterPlainText.slice(0, 500),
         context_before: context.before,
         context_after: context.after,
         chapter_title: chapterTitle,
         chapter_index: $_activeChapterIndex,
-        cfi: getCurrentCfiFallback(),
+        cfi: cfi,
       };
       if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
         window.flutter_inappwebview.callHandler('$_ghostCaptureHandlerName', payload);
       }
-      selection.removeAllRanges();
-    });
+    }
+    function captureWordAt(clientX, clientY) {
+      const root = document.getElementById('chapter-root');
+      if (!root) return;
+      const range = rangeFromPoint(clientX, clientY);
+      if (!range) return;
+      const extracted = extractWordAtCaret(range);
+      if (!extracted) return;
+      const chapterPlainText = cleanSpaces(root.innerText || '');
+      if (!chapterPlainText) return;
+      sendGhostCapture(
+        extracted.word,
+        chapterPlainText,
+        extracted.glowParent,
+        getCfiFallbackFromRange(range)
+      );
+    }
+    (function attachDoubleTapGhost() {
+      const root = document.getElementById('chapter-root');
+      if (!root) return;
+      let lastTapTime = 0;
+      let lastTapX = 0;
+      let lastTapY = 0;
+      const DOUBLE_MS = 380;
+      const DOUBLE_DIST = 48;
+      root.addEventListener('touchend', function(e) {
+        if (e.changedTouches.length !== 1) return;
+        const t = e.changedTouches[0];
+        const now = Date.now();
+        const x = t.clientX;
+        const y = t.clientY;
+        if (now - lastTapTime < DOUBLE_MS &&
+            Math.hypot(x - lastTapX, y - lastTapY) < DOUBLE_DIST) {
+          lastTapTime = 0;
+          captureWordAt(x, y);
+        } else {
+          lastTapTime = now;
+          lastTapX = x;
+          lastTapY = y;
+        }
+      }, { passive: true });
+      root.addEventListener('dblclick', function(e) {
+        e.preventDefault();
+        captureWordAt(e.clientX, e.clientY);
+      });
+    })();
   </script>
 </body>
 </html>
@@ -483,7 +557,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                   payload: payload,
                                 );
                                 if (highlight == null) return;
-                                _showCaptureFeedback(context);
+                                _showCaptureFeedback();
                                 _captureHighlightSilently(
                                   ref: ref,
                                   highlight: highlight,

@@ -68,10 +68,9 @@ To achieve fluency, a user must consume high volumes of "Comprehensible Input" (
 * **Search:** Full-text search across both target words and context sentences.
 
 ### [F05] The Restoration Game (Core Loop) (P0)
-* **Mode:** Cloze-Test (Fill-in-the-blank).
-* **Logic:** * Display the captured context sentence.
-    * Replace `target_word` with a `[___]` blank.
-    * **Input Method:** Scrambled letter tiles (low friction) or manual typing (high mastery).
+* **Mode:** Cloze-style fill-in-the-blank (multiple choice tiles) and optional **Match meanings** pairing game.
+* **Logic:** The game tests words from the **Scholar's Vault** (reading captures). The sentence shown in **Complete the sentence** is **not** always the same as the captured `context_sentence`: when a dictionary `example_sentence` exists, that standalone line is used so the learner applies the word in a *new* context; otherwise the app falls back to the captured sentence until an example is available. The Vault still shows the original mention for source memory.
+* **Input Method:** Multiple-choice word tiles (MVP). Optional future: scrambled letter tiles or typing for higher mastery.
 * **SRS Integration:** Use a modified SuperMemo-2 (SM2) algorithm to schedule when words reappear in the game loop based on user performance.
 
 ### [F06] The "Source Link" Deep-Linking (P1)
@@ -104,6 +103,7 @@ To achieve fluency, a user must consume high volumes of "Comprehensible Input" (
 #### [F11] Local Library Management (P0)
 * **Requirement:** A "Shelf" view that displays all imported EPUBs using extracted metadata (Cover Art, Title, Author).
 * **Persistence:** The system must save the `last_cfi` (last read position) every time the reader view is closed, allowing for "1-tap resume."
+* **Implementation (dev backend + Flutter):** Home dashboard uses `GET /v1/me/home` — aggregate stats (books, vault size, due reviews), resume-reading from last opened book + saved progress, and the five most recent vault captures (word + book title).
 
 #### [F12] The "Reveal" Logic in Restoration (P1)
 * **Requirement:** In the [F05] Game, after a user submits an answer, the UI must "flip" or expand the card to show a dictionary definition and the "Emergency Synonym" from [F07].

@@ -149,6 +149,9 @@ class ReviewEventRead(BaseModel):
     is_correct: bool
     selected_answer: str | None
     answered_at: datetime
+    combo_multiplier: int = 1
+    xp_earned: int = 0
+    response_time_ms: int | None = None
     srs: SrsItemRead
 
     model_config = {"from_attributes": True}
@@ -161,6 +164,9 @@ class GameAnswerCreate(BaseModel):
     selected_answer: str | None = Field(default=None, max_length=512)
     is_correct: bool
     grade: int | None = Field(default=None, ge=0, le=5)
+    combo_multiplier: int = Field(default=1, ge=1)
+    xp_earned: int = Field(default=0, ge=0)
+    response_time_ms: int | None = Field(default=None, ge=0)
 
 
 class GameDeckItemRead(BaseModel):

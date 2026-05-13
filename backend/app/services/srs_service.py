@@ -66,12 +66,22 @@ def grade_item(
         is_correct = grade >= 3
 
     _apply_sm2(item, grade)
+    combo_mult = 1
+    xp_val = 0
+    response_ms: int | None = None
+    if isinstance(data, GameAnswerCreate):
+        combo_mult = data.combo_multiplier
+        xp_val = data.xp_earned
+        response_ms = data.response_time_ms
     event = ReviewEvent(
         srs_item_id=item.id,
         game_type=data.game_type,
         grade=grade,
         is_correct=is_correct,
         selected_answer=data.selected_answer,
+        combo_multiplier=combo_mult,
+        xp_earned=xp_val,
+        response_time_ms=response_ms,
     )
     session.add(item)
     session.add(event)
@@ -86,6 +96,9 @@ def grade_item(
         is_correct=event.is_correct,
         selected_answer=event.selected_answer,
         answered_at=event.answered_at,
+        combo_multiplier=event.combo_multiplier,
+        xp_earned=event.xp_earned,
+        response_time_ms=event.response_time_ms,
         srs=item,
     )
 

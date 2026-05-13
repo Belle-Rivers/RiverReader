@@ -74,6 +74,8 @@
 ### Epic 4: [F04, F11, F13] Local Library & Scholar's Vault
 **User Story:** As a user, I want to manage my imported books and browse a beautiful archive of the words I've captured, so I can see my progress.
 
+*   ✅ **Task 4.0 (Home dashboard):** Wire the Home tab to `GET /v1/me/home` — library/vault/due stats, resume reading from `last_opened_book` + `last_progress`, and **Latest captures** from `recent_vault_words` (last five vault words with book titles). Provider refresh tied to highlights, shelf edits, reading progress, and game answers.
+
 *   **Task 4.1:** Define and instantiate the SQLite schema (Tables: `books`, `ghost_highlights`, `user_stats`).
 *   **Task 4.2:** Implement native file picker integration (iOS Files / Android Documents) to import `.epub` files into the app's secure sandbox.
 *   **Task 4.3:** Extract metadata (Cover Art Blob, Title, Author) from the EPUB package and save it to the `books` table.
@@ -98,7 +100,7 @@
 
 *   **Task 5.1:** Implement the SuperMemo-2 (SM2) Spaced Repetition logic to calculate the `next_review_date` for each captured word. *(Note: SM-2 SRS algorithm lives in `game_service.py` / `srs_service.py` during development, and will be ported 1:1 to `srs_repository.dart` before App Store submission.)*
 *   **Task 5.2:** Build the SQLite query to generate the daily "Game Deck," prioritizing words by recency and SM2 schedule.
-*   **Task 5.3:** Develop the "Cloze-Test" UI card, rendering the context string with the `target_word` replaced by a `[___]` blank.
+*   ✅ **Task 5.3:** Build the "Complete the sentence" card: show a **blanked sentence** from the game deck (`GET /v1/games/deck`). Prefer a dictionary **example sentence** (new context); fall back to the captured context sentence when no example exists. Render multiple-choice word tiles (MVP; scrambled-letter tiles deferred).
 *   **Task 5.4:** Write the logic to scramble the letters of the `target_word` into interactive, draggable bottom-sheet tiles.
 *   **Task 5.5:** Implement input validation logic and trigger the "pencil-on-paper" audio asset upon correct completion.
 *   **Task 5.6:** Build the "Reveal UI": a 3D flip or accordion expansion that displays the dictionary definition post-answer.

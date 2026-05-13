@@ -88,6 +88,9 @@ class ReviewEvent(SQLModel, table=True):
     is_correct: bool
     selected_answer: str | None = Field(default=None, max_length=512)
     answered_at: datetime = Field(default_factory=utc_now)
+    combo_multiplier: int = Field(default=1)
+    xp_earned: int = Field(default=0)
+    response_time_ms: int | None = Field(default=None)
 
 
 class DictionaryEntry(SQLModel, table=True):

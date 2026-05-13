@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/games/presentation/games_page.dart';
 import '../../features/games/presentation/game_session_page.dart';
+import '../../features/games/application/game_session_controller.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/library/presentation/library_shelf_page.dart';
 import '../../features/reader/presentation/reader_page.dart';
@@ -53,11 +54,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/games/complete-sentence',
-        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(type: GameSessionType.completeSentence),
+        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(kind: GameSessionKind.completeSentence),
       ),
       GoRoute(
         path: '/games/match-meanings',
-        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(type: GameSessionType.matchMeanings),
+        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(kind: GameSessionKind.matchMeanings),
       ),
       GoRoute(
         path: '/settings',

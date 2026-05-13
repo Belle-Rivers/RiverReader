@@ -39,6 +39,7 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     _ensure_user_profile_columns(engine)
     _ensure_dictionary_columns(engine)
+    _ensure_review_event_columns(engine)
 
 
 def _ensure_user_profile_columns(engine) -> None:
@@ -83,4 +84,22 @@ def _ensure_dictionary_columns(engine) -> None:
             if column_name not in existing:
                 connection.exec_driver_sql(
                     f"ALTER TABLE dictionary_entries ADD COLUMN {column_name} {column_type}"
+                )
+
+
+def _ensure_review_event_columns(engine) -> None:
+    columns = {
+        "combo_multiplier": "INTEGER DEFAULT 1",
+        "xp_earned": "INTEGER DEFAULT 0",
+        "response_time_ms": "INTEGER",
+    }
+    with engine.begin() as connection:
+        existing = {
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(review_events)").all()
+        }
+        for column_name, column_type in columns.items():
+            if column_name not in existing:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE review_events ADD COLUMN {column_name} {column_type}"
                 )

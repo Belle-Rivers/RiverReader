@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/current_user_provider.dart';
+import '../../home/application/home_provider.dart';
 import '../data/book_api.dart';
 
 final bookApiProvider = Provider<BookApi>((ref) => BookApi());
@@ -24,6 +25,7 @@ class LibraryShelfController extends AsyncNotifier<List<BookApiModel>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await api.uploadBook(userId, filePath, fileName, fileBytes);
+      ref.invalidate(homeSummaryProvider);
       return api.listBooks(userId);
     });
   }
@@ -37,6 +39,7 @@ class LibraryShelfController extends AsyncNotifier<List<BookApiModel>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await api.deleteBook(userId, bookId);
+      ref.invalidate(homeSummaryProvider);
       return api.listBooks(userId);
     });
     

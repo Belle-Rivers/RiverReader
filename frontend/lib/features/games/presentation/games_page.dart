@@ -77,7 +77,8 @@ class GamesPage extends ConsumerWidget {
   }
 
   Widget _gameCard(BuildContext context, IconData icon, Color iconBg, String title, String subtitle, VoidCallback onTap) {
-    final theme = Theme.of(context);
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
@@ -92,8 +93,8 @@ class GamesPage extends ConsumerWidget {
           const SizedBox(width: 16),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: theme.textTheme.headlineMedium),
-              Text(subtitle, style: theme.textTheme.bodyLarge),
+              Text(title, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+              Text(subtitle, style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
             ]),
           ),
           const Icon(Icons.arrow_forward_rounded),

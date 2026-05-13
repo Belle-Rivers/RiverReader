@@ -1,3 +1,4 @@
+import random
 import re
 from uuid import UUID
 
@@ -15,8 +16,11 @@ def get_deck(
     game_type: str = "cloze",
     limit: int = 10,
 ) -> list[GameDeckItemRead]:
-    due = srs_service.list_due_items(session, user_id, limit=limit)
-    rows = due if due else _recent_items(session, user_id, limit=limit)
+    rows = _deck_rows(session, user_id, limit=limit)
+    if not rows:
+        return []
+    if game_type == "meaning_match":
+        return _meaning_match_deck(session, user_id, rows)
     return [
         _build_item(session, srs_item, highlight, game_type)
         for srs_item, highlight in rows
@@ -25,6 +29,18 @@ def get_deck(
 
 def answer_game(session: Session, data: GameAnswerCreate):
     return srs_service.grade_item(session, data.srs_item_id, data, user_id=data.user_id)
+
+
+def _deck_rows(
+    session: Session,
+    user_id: UUID,
+    *,
+    limit: int,
+) -> list[tuple[SrsItem, Highlight]]:
+    due = srs_service.list_due_items(session, user_id, limit=limit)
+    if due:
+        return list(due)
+    return _recent_items(session, user_id, limit=limit)
 
 
 def _recent_items(
@@ -46,6 +62,72 @@ def _recent_items(
     return list(session.exec(statement).all())
 
 
+def _meaning_match_deck(
+    session: Session,
+    user_id: UUID,
+    rows: list[tuple[SrsItem, Highlight]],
+) -> list[GameDeckItemRead]:
+    """Build one match round: several words share the same shuffled definition list."""
+    pairs: list[tuple[SrsItem, Highlight, str]] = []
+    for srs_item, highlight in rows:
+        dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+        definition = dictionary_entry.definition if dictionary_entry else None
+        meaning = (definition or (highlight.context_sentence or "").strip())
+        if not meaning:
+            continue
+        pairs.append((srs_item, highlight, meaning))
+    if not pairs:
+        return []
+    if len(pairs) == 1:
+        srs_item, highlight, meaning = pairs[0]
+        return [_meaning_match_single(session, user_id, srs_item, highlight, meaning)]
+    shuffled_meanings = [p[2] for p in pairs]
+    random.shuffle(shuffled_meanings)
+    out: list[GameDeckItemRead] = []
+    for srs_item, highlight, meaning in pairs:
+        book = session.get(Book, highlight.book_id)
+        dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+        entry_def = dictionary_entry.definition if dictionary_entry else None
+        out.append(
+            GameDeckItemRead(
+                game_type="meaning_match",
+                highlight_id=highlight.id,
+                srs_item_id=srs_item.id,
+                target_word=highlight.target_word,
+                prompt=highlight.target_word,
+                choices=list(shuffled_meanings),
+                correct_answer=meaning,
+                definition=entry_def,
+                book_title=book.title if book else None,
+            )
+        )
+    return out
+
+
+def _meaning_match_single(
+    session: Session,
+    user_id: UUID,
+    srs_item: SrsItem,
+    highlight: Highlight,
+    meaning: str,
+) -> GameDeckItemRead:
+    book = session.get(Book, highlight.book_id)
+    dictionary_entry = dictionary_service.get_entry(session, highlight.target_word)
+    entry_def = dictionary_entry.definition if dictionary_entry else None
+    choices = _meaning_choices(session, user_id, highlight.target_word, meaning)
+    return GameDeckItemRead(
+        game_type="meaning_match",
+        highlight_id=highlight.id,
+        srs_item_id=srs_item.id,
+        target_word=highlight.target_word,
+        prompt=highlight.target_word,
+        choices=choices,
+        correct_answer=meaning,
+        definition=entry_def,
+        book_title=book.title if book else None,
+    )
+
+
 def _build_item(
     session: Session,
     srs_item: SrsItem,
@@ -58,18 +140,11 @@ def _build_item(
     if dictionary_entry is not None:
         definition = dictionary_entry.definition
 
-    if game_type == "meaning_match":
-        choices = _meaning_choices(session, highlight.user_id, highlight.target_word, definition)
-        prompt = highlight.target_word
-        correct_answer = definition or highlight.context_sentence
-    elif game_type == "definition_reveal":
+    if game_type == "definition_reveal":
         choices = []
         prompt = highlight.context_sentence
         correct_answer = definition or highlight.target_word
     else:
-        # cloze: use the dictionary example_sentence as the game sentence.
-        # This is intentionally a DIFFERENT sentence from the captured context_sentence.
-        # The context_sentence is only shown in the Vault for reference.
         game_type = "cloze"
         game_sentence = _get_game_sentence(dictionary_entry, highlight)
         prompt = _blank_word(game_sentence, highlight.target_word)
@@ -101,8 +176,6 @@ def _get_game_sentence(dictionary_entry, highlight) -> str:
     """
     if dictionary_entry is not None and dictionary_entry.example_sentence:
         return dictionary_entry.example_sentence
-    # Fallback: use captured sentence. Frontend can show a note that this is
-    # the original sentence until an example_sentence is available.
     return highlight.context_sentence
 
 
@@ -144,7 +217,6 @@ def _meaning_choices(
     if correct_definition:
         choices.append(correct_definition)
 
-    # Pull other vault words and look up their definitions as distractors
     other_words = session.exec(
         select(Highlight.target_word)
         .where(

@@ -65,12 +65,6 @@ Both games are powered by **words from the user's Vault** (captured highlights).
 - User taps pairs to match them
 - Each correct pair → submit answer → backend updates SRS
 
-#### Game 2: Match the Word (`meaning_match`)
-- Backend selects multiple highlights and returns words + their definitions
-- Frontend displays words in one column, definitions in another
-- User taps pairs to match them
-- Each correct pair → submit answer → backend updates SRS
-
 ### Gamification Factors (Backend + Frontend Alignment)
 
 The frontend already shows combo, XP (stars), lives, and a timer. These must be driven by backend data.
@@ -141,7 +135,7 @@ These connect the FastAPI backend to the Flutter frontend, preparing the codebas
 - `frontend/lib/features/vault/application/vault_provider.dart` — invalidate on new highlight
 
 **Behavior:**
-1. User swipes/taps word in EPUB WebView
+1. User **double-taps** a word in the EPUB WebView (silent capture; no dictionary popup)
 2. JS bridge fires immediately → Flutter triggers haptic + shimmer animation (< 50ms)
 3. **Asynchronously** (fire and forget): `POST /v1/highlights` with `target_word`, `context_before`, `context_sentence`, `context_after`, `cfi`, `chapter_title`, `book_id`
 4. If the POST fails (offline): save to a local JSON queue (`shared_preferences`) and retry on next app launch
@@ -177,9 +171,11 @@ class PendingHighlight {
 **Goal:** Replace all hardcoded mock data in game_session_page.dart with real vault words
 
 **Files to create/modify:**
-- `frontend/lib/features/games/data/game_api.dart` — new file, `getDeck()` and `submitAnswer()` methods
-- `frontend/lib/features/games/controllers/game_controller.dart` — Riverpod notifier managing session state
-- `frontend/lib/features/games/presentation/game_session_page.dart` — consume real data
+- `frontend/lib/features/games/data/game_api.dart` — `getDeck()` and `submitAnswer()` methods
+- `frontend/lib/features/games/application/game_session_controller.dart` — Riverpod session state (deck, combo, XP, lives, timers)
+- `frontend/lib/features/games/presentation/game_session_page.dart` — consume real deck data and gamification state
+
+**Status:** ✅ Implemented (dev backend + Flutter)
 
 **`GameDeckItemRead` already returns from backend:**
 ```
@@ -221,25 +217,23 @@ await gameApi.submitAnswer(GameAnswerCreate(
 **Endpoint:** `GET /v1/me/home`  
 **Goal:** Show real user stats on the Home page
 
-**Data to show (already in `HomeRead` response + additions needed):**
+**Status:** ✅ Completed
+
+**Data shown (from `HomeRead`):**
 - ✅ `stats.vault_count` — total words captured
 - ✅ `stats.books_count` — total books in library
 - ✅ `stats.due_reviews_count` — games ready to play today
 - ✅ `last_opened_book` + `last_progress` — resume reading button
-- 🆕 `recent_vault_words` — **last 5 words added to the Vault** (word + book title)
+- ✅ `recent_vault_words` — last 5 words added to the Vault (word + book title)
 
-**Backend change needed in `home_service.py` and `home.py` schema:**
-```python
-# Add to HomeStatsRead or HomeRead
-recent_vault_words: list[VaultItemRead] = []  # last 5 highlights ordered by created_at desc
-```
+**Backend (`home_service.py`, `schemas/home.py`):**
+- ✅ `HomeRead.recent_vault_words` + `_recent_vault_words()` query (newest highlights, book title attached)
 
-**Files to create/modify:**
-- `backend/app/schemas/home.py` — add `recent_vault_words` field to `HomeRead`
-- `backend/app/services/home_service.py` — add `_recent_vault_words()` query
-- `frontend/lib/features/home/data/home_api.dart` — new file
-- `frontend/lib/features/home/application/home_provider.dart` — Riverpod provider
-- `frontend/lib/features/home/presentation/home_page.dart` — consume real data
+**Frontend:**
+- ✅ `frontend/lib/features/home/data/home_api.dart` — `fetchHome(userId)`
+- ✅ `frontend/lib/features/home/application/home_provider.dart` — `homeSummaryProvider`
+- ✅ `frontend/lib/features/home/presentation/home_page.dart` — stats row, continue reading, recent captures, due count on games card
+- ✅ `homeSummaryProvider` invalidated after highlights, shelf changes, progress saves, and game answers so counts stay fresh
 
 ---
 
@@ -294,5 +288,5 @@ These were originally part of later polish in Phase 4+, but are implemented now 
 | **Complete the Sentence** | Start game → sentences should come from real vault words, not Great Gatsby mock data |
 | **Match the Word** | Start game → words + definitions from vault, not hardcoded options |
 | **Combo/XP** | Answer 3 in a row correctly → combo should show x3 and XP should increase |
-| **Home Dashboard** | After a reading session → home page shows correct word count and last book |
+| **Home Dashboard** | Sign in → home shows Books/Vault/Due counts, resume card matches last saved progress, “Latest captures” lists last 5 words with book titles; after a game round, Due count updates when you return home |
 | **Dictionary Hint** | Double-tap a word while reading → tooltip shows definition from backend |
