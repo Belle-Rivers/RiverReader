@@ -25,7 +25,7 @@ class RiverFonts {
     Color? color,
     FontWeight fontWeight = FontWeight.w600,
   }) {
-    return GoogleFonts.caveat(
+    return GoogleFonts.dynaPuff(
       fontSize: size,
       fontWeight: fontWeight,
       color: color,
@@ -74,56 +74,50 @@ class AppThemeState {
   }
 
   ThemeData _baseTheme(ColorScheme scheme, Color background, bool dark) {
-    final textTheme = TextTheme(
+    final baseTextTheme = TextTheme(
       displayLarge: TextStyle(
-        fontFamily: 'Georgia',
         fontSize: 44,
         fontWeight: FontWeight.w700,
         color: scheme.onSurface,
       ),
       headlineLarge: TextStyle(
-        fontFamily: 'Georgia',
         fontSize: 36,
         fontWeight: FontWeight.w700,
         color: scheme.onSurface,
       ),
       headlineMedium: TextStyle(
-        fontFamily: 'Georgia',
         fontSize: 22,
         fontWeight: FontWeight.w700,
         color: scheme.onSurface,
       ),
       titleLarge: TextStyle(
-        fontFamily: 'Georgia',
         fontSize: 18,
         fontWeight: FontWeight.w700,
         color: scheme.onSurface,
       ),
       bodyLarge: TextStyle(
-        fontFamily: 'Trebuchet MS',
         fontSize: 17,
         height: 1.4,
         color: scheme.onSurface,
       ),
       bodyMedium: TextStyle(
-        fontFamily: 'Trebuchet MS',
         fontSize: 14,
         height: 1.4,
         color: scheme.onSurfaceVariant,
       ),
       labelLarge: TextStyle(
-        fontFamily: 'Trebuchet MS',
         fontSize: 16,
         fontWeight: FontWeight.w600,
         color: scheme.onSurface,
       ),
       labelMedium: TextStyle(
-        fontFamily: 'Trebuchet MS',
         fontSize: 13,
         fontWeight: FontWeight.w500,
         color: scheme.onSurfaceVariant,
       ),
     );
+
+    final textTheme = GoogleFonts.dynaPuffTextTheme(baseTextTheme);
 
     return ThemeData(
       useMaterial3: true,

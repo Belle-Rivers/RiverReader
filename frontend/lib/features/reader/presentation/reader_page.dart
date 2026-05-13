@@ -311,6 +311,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=DynaPuff:wght@400..700&display=swap');
     :root {
       color-scheme: light dark;
     }
@@ -319,7 +320,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       padding: 0;
       background: $backgroundColorHex !important;
       color: $textColorHex !important;
-      font-family: serif;
+      font-family: 'DynaPuff', cursive;
       line-height: 1.7;
     }
     body {

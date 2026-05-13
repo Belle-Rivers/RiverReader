@@ -21,8 +21,13 @@ class HomePage extends ConsumerWidget {
     final AsyncValue<HomeSummaryModel?> homeAsync = ref.watch(homeSummaryProvider);
     return RiverScaffold(
       title: 'River Reader',
-      subtitle: 'Welcome back, scholar',
-      showLogo: true,
+      subtitle: homeAsync.maybeWhen(
+        data: (home) => home?.displayName != null && home!.displayName!.trim().isNotEmpty
+            ? 'Welcome back, ${home.displayName!.trim()}'
+            : 'Welcome back, scholar',
+        orElse: () => 'Welcome back, scholar',
+      ),
+      showLogo: false,
       tab: RiverTab.home,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -38,22 +43,7 @@ class HomePage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: <Widget>[
-          homeAsync.when(
-            data: (HomeSummaryModel? home) {
-              if (home != null && home.displayName != null && home.displayName!.trim().isNotEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text(
-                    'Hello, ${home.displayName!.trim()}',
-                    style: theme.textTheme.titleMedium?.copyWith(color: AppColors.mint),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
+
           Text('Pick up where you left off', style: RiverFonts.handwritten(size: 28, color: AppColors.mint)),
           const SizedBox(height: 6),
           if (userId == null) ...<Widget>[
@@ -133,11 +123,23 @@ class HomePage extends ConsumerWidget {
                           width: 60,
                           height: 80,
                           decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: <Color>[Color(0xFF5A4432), Color(0xFF32261E)],
-                            ),
+                            gradient: book.coverRef == null
+                                ? const LinearGradient(
+                                    colors: <Color>[Color(0xFF5A4432), Color(0xFF32261E)],
+                                  )
+                                : null,
                             borderRadius: BorderRadius.circular(8),
                           ),
+                          clipBehavior: Clip.antiAlias,
+                          child: book.coverRef != null
+                              ? Image.network(
+                                  'http://localhost:8000/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => const Center(
+                                    child: Icon(Icons.book_rounded, color: Colors.white, size: 24),
+                                  ),
+                                )
+                              : null,
                         ),
                         const SizedBox(width: 16),
                         Expanded(

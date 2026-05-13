@@ -103,7 +103,7 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
 
   TextStyle _serif(BuildContext context, {double size = 17, FontWeight weight = FontWeight.w600}) {
     final ColorScheme cs = Theme.of(context).colorScheme;
-    return TextStyle(fontFamily: 'Georgia', fontSize: size, height: 1.35, fontWeight: weight, color: cs.onSurface);
+    return TextStyle(fontSize: size, height: 1.35, fontWeight: weight, color: cs.onSurface);
   }
 
   TextStyle _sansUi(BuildContext context, {double size = 13, FontWeight weight = FontWeight.w600}) {

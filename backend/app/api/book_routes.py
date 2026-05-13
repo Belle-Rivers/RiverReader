@@ -95,6 +95,29 @@ def get_book_chapter_content(
     try:
         chapter_html = extract_chapter_content(file_path, chapter.href)
         chapter_text = extract_chapter_text(file_path, chapter.href)
+        
+        # Rewrite image sources to use our resource endpoint
+        # Find <img src="something.jpg"> and replace with <img src="/v1/books/{book_id}/resources/something.jpg?user_id={user_id}">
+        # We handle both absolute and relative paths in the EPUB by using the directory of the chapter
+        import re
+        from urllib.parse import urljoin
+        
+        chapter_dir = os.path.dirname(chapter.href)
+        
+        def rewrite_src(match):
+            original_src = match.group(2)
+            if original_src.startswith(('http://', 'https://', 'data:')):
+                return match.group(0)
+            
+            # Resolve relative path
+            resolved_href = urljoin(chapter_dir + "/", original_src)
+            if resolved_href.startswith('/'):
+                resolved_href = resolved_href[1:]
+                
+            return f'{match.group(1)}="/v1/books/{book_id}/resources/{resolved_href}?user_id={user_id}"'
+
+        chapter_html = re.sub(r'(src|href)=["\']([^"\']+)["\']', rewrite_src, chapter_html)
+
     except KeyError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="chapter file missing in epub") from exc
     except Exception as exc:
@@ -107,6 +130,38 @@ def get_book_chapter_content(
         content_html=chapter_html,
         content_text=chapter_text,
     )
+
+
+@book_router.get("/{book_id}/cover", response_class=Response)
+def get_book_cover(book_id: UUID, user_id: UUID, session: SessionDep):
+    book = book_service.get_book(session, book_id, user_id)
+    if book is None or not book.cover_ref:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="cover not found")
+    
+    file_path = f"data/books/{book_id}.epub"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="book file not found")
+    
+    from app.services.epub_parser import extract_epub_resource
+    data, media_type = extract_epub_resource(file_path, book.cover_ref)
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="failed to extract cover")
+    
+    return Response(content=data, media_type=media_type or "image/jpeg")
+
+
+@book_router.get("/{book_id}/resources/{resource_path:path}", response_class=Response)
+def get_book_resource(book_id: UUID, resource_path: str, user_id: UUID, session: SessionDep):
+    file_path = f"data/books/{book_id}.epub"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="book file not found")
+    
+    from app.services.epub_parser import extract_epub_resource
+    data, media_type = extract_epub_resource(file_path, resource_path)
+    if not data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="resource not found")
+    
+    return Response(content=data, media_type=media_type)
 
 
 

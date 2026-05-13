@@ -66,7 +66,8 @@ class _VaultPageState extends ConsumerState<VaultPage> {
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(
+                Flexible(
+                  flex: 3,
                   child: _bookFilterPill(
                     theme: theme,
                     selectedBookId: selectedBookId,
@@ -74,8 +75,8 @@ class _VaultPageState extends ConsumerState<VaultPage> {
                   ),
                 ),
                 const SizedBox(width: 10),
-                SizedBox(
-                  width: 190,
+                Flexible(
+                  flex: 2,
                   child: _sortPill(theme),
                 ),
               ],
@@ -115,8 +116,6 @@ class _VaultPageState extends ConsumerState<VaultPage> {
                                         style: theme.textTheme.titleLarge?.copyWith(fontStyle: FontStyle.italic),
                                       ),
                                     ),
-                                    Text(item.bookTitle ?? 'Unknown Book', style: theme.textTheme.bodyLarge),
-                                    const SizedBox(width: 8),
                                     IconButton(
                                       onPressed: () => _confirmDelete(item),
                                       icon: const Icon(Icons.delete_outline),
@@ -126,8 +125,8 @@ class _VaultPageState extends ConsumerState<VaultPage> {
                                 ),
                                 Text(
                                   '"${item.contextSentence}"',
-                                  style: theme.textTheme.bodyLarge,
-                                  maxLines: 1,
+                                  style: theme.textTheme.bodyMedium,
+                                  maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
@@ -234,7 +233,13 @@ class _VaultPageState extends ConsumerState<VaultPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodyLarge),
+          Flexible(
+            child: Text(
+              label,
+              style: theme.textTheme.bodyLarge,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const Icon(Icons.expand_more),
         ],
       ),
@@ -361,14 +366,7 @@ class _VaultWordDetailSheetState extends ConsumerState<_VaultWordDetailSheet> {
               Text('Where it was mentioned', style: theme.textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(item.contextSentence, style: theme.textTheme.bodyLarge),
-              if (item.contextBefore != null) ...[
-                const SizedBox(height: 6),
-                Text('Before: ${item.contextBefore}', style: theme.textTheme.bodyMedium),
-              ],
-              if (item.contextAfter != null) ...[
-                const SizedBox(height: 6),
-                Text('After: ${item.contextAfter}', style: theme.textTheme.bodyMedium),
-              ],
+
               const SizedBox(height: 6),
               Text(
                 'Book: ${item.bookTitle ?? 'Unknown'} · Chapter: ${item.chapterTitle ?? '-'}',

@@ -21,7 +21,7 @@ def list_vault_items(
     statement = (
         select(Highlight, Book, SrsItem)
         .join(Book, Highlight.book_id == Book.id)
-        .join(SrsItem, SrsItem.highlight_id == Highlight.id)
+        .outerjoin(SrsItem, SrsItem.highlight_id == Highlight.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712

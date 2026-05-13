@@ -64,7 +64,7 @@ class SettingsPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(profile?.displayName ?? (profile != null ? 'Scholar' : 'Not logged in'), style: const TextStyle(fontFamily: 'Georgia', fontSize: 24, fontWeight: FontWeight.w700)),
+                  Text(profile?.displayName ?? (profile != null ? 'Scholar' : 'Not logged in'), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
                   Text(profile?.email ?? 'No active session', style: const TextStyle(fontSize: 18)),
                 ],
@@ -102,7 +102,7 @@ class SettingsPage extends ConsumerWidget {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(height: 80, decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), gradient: LinearGradient(colors: colors))),
           const SizedBox(height: 8),
-          Row(children: [Icon(icon), const SizedBox(width: 8), Text(name, style: const TextStyle(fontFamily: 'Georgia', fontSize: 22, fontWeight: FontWeight.w700))]),
+          Row(children: [Icon(icon), const SizedBox(width: 8), Text(name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700))]),
         ]),
       ),
     );

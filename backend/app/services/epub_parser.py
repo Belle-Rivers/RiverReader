@@ -82,11 +82,35 @@ def parse_epub_file(file_path: str, user_id: UUID) -> BookCreate:
         spine = opf_tree.find('opf:spine', NS)
 
         items: dict[str, str | None] = {}
+        item_properties: dict[str, str | None] = {}
         if manifest is not None:
             for item in manifest.findall('opf:item', NS):
                 item_id = item.get('id')
                 if item_id is not None:
                     items[item_id] = item.get('href')
+                    item_properties[item_id] = item.get('properties')
+
+        # Try to find cover image
+        cover_href = None
+        # Option A: Look for properties="cover-image"
+        for item_id, props in item_properties.items():
+            if props and "cover-image" in props:
+                cover_href = items.get(item_id)
+                break
+        
+        # Option B: Look for <meta name="cover" content="item-id">
+        if not cover_href and metadata is not None:
+            for meta in metadata.findall('opf:meta', NS):
+                if meta.get('name') == 'cover':
+                    cover_href = items.get(meta.get('content'))
+                    break
+        
+        # Option C: Look for id="cover" or similar
+        if not cover_href:
+            for item_id in ["cover", "cover-image", "coverimage"]:
+                if item_id in items:
+                    cover_href = items.get(item_id)
+                    break
 
         chapters = []
         if spine is not None:
@@ -120,6 +144,7 @@ def parse_epub_file(file_path: str, user_id: UUID) -> BookCreate:
             author=author,
             language=language,
             file_hash=file_hash,
+            cover_ref=cover_href,
             chapters=chapters
         )
 
@@ -141,3 +166,26 @@ def extract_chapter_content(file_path: str, chapter_href: str) -> str:
 def extract_chapter_text(file_path: str, chapter_href: str) -> str:
     chapter_html = extract_chapter_content(file_path, chapter_href)
     return _extract_plain_text_from_html(chapter_html)
+
+
+def extract_epub_resource(file_path: str, resource_href: str) -> tuple[bytes, str | None]:
+    """Extracts a generic resource (image, css, etc) from the EPUB."""
+    with zipfile.ZipFile(file_path, 'r') as archive:
+        try:
+            opf_tree, opf_path = _read_opf_tree(archive)
+            opf_dir = os.path.dirname(opf_path)
+            
+            # Find the item in manifest to get its media-type
+            media_type = None
+            manifest = opf_tree.find('opf:manifest', NS)
+            if manifest is not None:
+                for item in manifest.findall('opf:item', NS):
+                    if item.get('href') == resource_href:
+                        media_type = item.get('media-type')
+                        break
+            
+            resource_path = _resolve_chapter_path(opf_dir, resource_href)
+            data = archive.read(resource_path)
+            return data, media_type
+        except Exception:
+            return b"", None

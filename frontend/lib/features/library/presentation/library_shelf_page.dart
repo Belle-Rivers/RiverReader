@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 
 import '../../../core/widgets/river_ui.dart';
+import '../../auth/application/current_user_provider.dart';
 import '../controllers/library_shelf_controller.dart';
 import '../data/book_api.dart';
 
@@ -72,26 +73,40 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
                             Expanded(
                               child: Container(
                                 width: double.infinity,
-                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(22),
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFF5A4432), Color(0xFF32261E)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
+                                  gradient: book.coverRef == null
+                                      ? const LinearGradient(
+                                          colors: [Color(0xFF5A4432), Color(0xFF32261E)],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        )
+                                      : null,
                                 ),
-                                child: Align(
-                                  alignment: Alignment.bottomLeft,
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(book.title, style: theme.textTheme.titleLarge?.copyWith(color: Colors.white)),
-                                      Text(book.author ?? 'Unknown Author', style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white70)),
-                                    ],
-                                  ),
-                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: book.coverRef != null
+                                    ? Image.network(
+                                        'http://localhost:8000/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) => Container(
+                                          color: const Color(0xFF32261E),
+                                          child: const Center(child: Icon(Icons.book_rounded, color: Colors.white, size: 40)),
+                                        ),
+                                      )
+                                    : Padding(
+                                        padding: const EdgeInsets.all(12),
+                                        child: Align(
+                                          alignment: Alignment.bottomLeft,
+                                          child: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(book.title, style: theme.textTheme.titleLarge?.copyWith(color: Colors.white)),
+                                              Text(book.author ?? 'Unknown Author', style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white70)),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                               ),
                             ),
                             const SizedBox(height: 8),
