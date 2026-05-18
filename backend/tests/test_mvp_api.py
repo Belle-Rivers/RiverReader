@@ -24,12 +24,32 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
     monkeypatch.setattr(session_module, "get_engine", lambda: test_engine)
     SQLModel.metadata.create_all(test_engine)
 
+    import httpx
+    class MockResponse:
+        def __init__(self, status_code, data=None):
+            self.status_code = status_code
+            self.data = data or {}
+        def json(self):
+            return self.data
+
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+        async def __aenter__(self):
+            return self
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+        async def get(self, url, *args, **kwargs):
+            return MockResponse(404)
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+
     with TestClient(create_app()) as test_client:
         yield test_client
 
 
 def _register(client: TestClient, email: str = "reader") -> str:
-    response = client.post("/v1/users/register", json={"email": email})
+    response = client.post("/v1/users/register", json={"email": email, "password": "securepassword123"})
     assert response.status_code == 201
     return response.json()["id"]
 
@@ -72,7 +92,7 @@ def _highlight(client: TestClient, user_id: str, book_id: str) -> dict:
 def test_profile_crud_regression(client: TestClient) -> None:
     user_id = _register(client, "Reader")
 
-    duplicate = client.post("/v1/users/register", json={"email": "reader"})
+    duplicate = client.post("/v1/users/register", json={"email": "reader", "password": "securepassword123"})
     assert duplicate.status_code == 409
 
     by_email = client.get("/v1/users/by-email/READER")

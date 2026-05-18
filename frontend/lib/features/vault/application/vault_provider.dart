@@ -35,6 +35,14 @@ final highlightApiProvider = Provider<HighlightApi>((ref) {
   return HighlightApi();
 });
 
+final bookVaultCountProvider = FutureProvider.family<int, String>((ref, bookId) async {
+  final userId = ref.watch(sessionUserIdProvider);
+  if (userId == null) return 0;
+  final api = ref.watch(vaultApiProvider);
+  final items = await api.listVaultItems(userId, bookId: bookId);
+  return items.length;
+});
+
 final vaultSyncNotifierProvider = Provider<VaultSyncNotifier>((ref) {
   return VaultSyncNotifier(ref);
 });
@@ -45,5 +53,6 @@ class VaultSyncNotifier {
   void onHighlightCaptured() {
     _ref.invalidate(vaultItemsProvider);
     _ref.invalidate(homeSummaryProvider);
+    _ref.invalidate(bookVaultCountProvider);
   }
 }

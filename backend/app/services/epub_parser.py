@@ -112,6 +112,28 @@ def parse_epub_file(file_path: str, user_id: UUID) -> BookCreate:
                     cover_href = items.get(item_id)
                     break
 
+        href_to_title = {}
+        toc_id = spine.get('toc') if spine is not None else None
+        if toc_id and toc_id in items:
+            toc_href = items[toc_id]
+            toc_path = _resolve_chapter_path(opf_dir, toc_href)
+            try:
+                toc_xml = archive.read(toc_path)
+                toc_tree = ET.fromstring(toc_xml)
+                for navPoint in toc_tree.findall('.//ncx:navPoint', NS):
+                    navLabel = navPoint.find('ncx:navLabel', NS)
+                    content = navPoint.find('ncx:content', NS)
+                    if navLabel is not None and content is not None:
+                        text_elem = navLabel.find('ncx:text', NS)
+                        src = content.get('src')
+                        if text_elem is not None and text_elem.text and src:
+                            clean_src = src.split('#')[0]
+                            toc_dir = os.path.dirname(toc_href)
+                            resolved_href = os.path.normpath(os.path.join(toc_dir, clean_src) if toc_dir else clean_src).replace("\\", "/")
+                            href_to_title[resolved_href] = text_elem.text.strip()
+            except Exception:
+                pass
+
         chapters = []
         if spine is not None:
             for idx, itemref in enumerate(spine.findall('opf:itemref', NS)):
@@ -119,12 +141,15 @@ def parse_epub_file(file_path: str, user_id: UUID) -> BookCreate:
                 href = items.get(item_id)
                 if href:
                     chapter_path = _resolve_chapter_path(opf_dir, href)
-                    chapter_title = None
-                    try:
-                        chapter_html = archive.read(chapter_path).decode("utf-8", errors="ignore")
-                        chapter_title = _extract_chapter_title_from_html(chapter_html)
-                    except Exception:
-                        chapter_title = None
+                    chapter_title = href_to_title.get(href)
+                    if not chapter_title:
+                        try:
+                            chapter_html = archive.read(chapter_path).decode("utf-8", errors="ignore")
+                            html_title = _extract_chapter_title_from_html(chapter_html)
+                            if html_title and title and html_title.lower() != title.lower():
+                                chapter_title = html_title
+                        except Exception:
+                            pass
                     chapters.append(BookChapterCreate(
                         chapter_index=idx,
                         title=chapter_title or f"Chapter {idx + 1}",

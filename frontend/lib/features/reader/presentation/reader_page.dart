@@ -490,14 +490,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         const range = rangeFromPoint(e.clientX, e.clientY);
         const extracted = extractWordAtCaret(range);
         if (!extracted) { downState = null; return; }
-        downState = { word: extracted.word, glowParent: extracted.glowParent, range: range };
+        downState = { word: extracted.word, glowParent: extracted.glowParent, range: range, x: e.clientX, y: e.clientY };
         timer = setTimeout(function() {
           timer = null;
           const st = downState;
           if (!st) return;
-          const chapterPlainText = cleanSpaces(root.innerText || '');
-          if (!chapterPlainText) return;
-          sendGhostCapture(st.word, chapterPlainText, st.glowParent, getCfiFallbackFromRange(st.range));
+          sendDictionaryHint(st.word, st.x, st.y);
           downState = null;
         }, HOLD_MS);
       }, { passive: true });
@@ -508,7 +506,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       root.addEventListener('pointerup', function() { clearTimer(); downState = null; }, { passive: true });
       root.addEventListener('pointercancel', function() { clearTimer(); downState = null; }, { passive: true });
     })();
-    (function attachDoubleTapHint() {
+    (function attachDoubleTapCapture() {
       const root = document.getElementById('chapter-root');
       if (!root) return;
       let lastTapTime = 0;
@@ -516,6 +514,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       let lastTapY = 0;
       const DOUBLE_MS = 380;
       const DOUBLE_DIST = 48;
+      function captureWordAt(x, y) {
+        const range = rangeFromPoint(x, y);
+        if (!range) return;
+        const extracted = extractWordAtCaret(range);
+        if (!extracted) return;
+        const chapterPlainText = cleanSpaces(root.innerText || '');
+        if (!chapterPlainText) return;
+        sendGhostCapture(extracted.word, chapterPlainText, extracted.glowParent, getCfiFallbackFromRange(range));
+      }
       root.addEventListener('touchend', function(e) {
         if (e.changedTouches.length !== 1) return;
         const t = e.changedTouches[0];
@@ -525,7 +532,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         if (now - lastTapTime < DOUBLE_MS &&
             Math.hypot(x - lastTapX, y - lastTapY) < DOUBLE_DIST) {
           lastTapTime = 0;
-          hintWordAt(x, y);
+          captureWordAt(x, y);
         } else {
           lastTapTime = now;
           lastTapX = x;
@@ -534,7 +541,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       }, { passive: true });
       root.addEventListener('dblclick', function(e) {
         e.preventDefault();
-        hintWordAt(e.clientX, e.clientY);
+        captureWordAt(e.clientX, e.clientY);
       });
     })();
     (function attachScrollDismissHint() {
@@ -628,19 +635,34 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                   IconButton(
                     onPressed: () => context.push('/vault?bookId=${widget.bookId}'),
                     icon: Stack(
+                      clipBehavior: Clip.none,
                       children: [
                         const Icon(Icons.inventory_2_outlined, size: 28),
-                        Positioned(
-                          right: -3,
-                          top: -8,
-                          child: CircleAvatar(
-                            radius: 10,
-                            backgroundColor: const Color(0xFF73D8B4),
-                            child: Text(
-                              '•',
-                              style: theme.textTheme.labelMedium?.copyWith(color: Colors.black),
-                            ),
-                          ),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final countAsync = ref.watch(bookVaultCountProvider(widget.bookId));
+                            final count = countAsync.valueOrNull ?? 0;
+                            if (count == 0) return const SizedBox.shrink();
+                            return Positioned(
+                              right: -8,
+                              top: -8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF73D8B4),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '$count',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -670,6 +692,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                   ),
                                   mimeType: 'text/html',
                                   encoding: 'utf-8',
+                                  baseUrl: WebUri(BookApi.baseUrl),
                                 ),
                                 initialSettings: InAppWebViewSettings(
                                   javaScriptEnabled: true,

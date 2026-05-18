@@ -126,7 +126,7 @@ class BookApiException implements Exception {
 class BookApi {
   BookApi({http.Client? client}) : _client = client ?? http.Client();
 
-  static const String _baseUrl = String.fromEnvironment(
+  static const String baseUrl = String.fromEnvironment(
     'RIVER_READER_API_URL',
     defaultValue: 'http://localhost:8000',
   );
@@ -134,7 +134,7 @@ class BookApi {
   final http.Client _client;
 
   Future<List<BookApiModel>> listBooks(String userId) async {
-    final Uri url = Uri.parse('$_baseUrl/v1/books?user_id=$userId');
+    final Uri url = Uri.parse('$baseUrl/v1/books?user_id=$userId');
     final http.Response response = await _client.get(url);
     if (response.statusCode != 200) {
       throw const BookApiException('Failed to load books');
@@ -152,7 +152,7 @@ class BookApi {
     String fileName,
     List<int> fileBytes,
   ) async {
-    final Uri url = Uri.parse('$_baseUrl/v1/books/upload');
+    final Uri url = Uri.parse('$baseUrl/v1/books/upload');
     final request = http.MultipartRequest('POST', url);
     request.fields['user_id'] = userId;
     request.files.add(http.MultipartFile.fromBytes(
@@ -174,7 +174,7 @@ class BookApi {
   }
 
   Future<void> deleteBook(String userId, String bookId) async {
-    final Uri url = Uri.parse('$_baseUrl/v1/books/$bookId?user_id=$userId');
+    final Uri url = Uri.parse('$baseUrl/v1/books/$bookId?user_id=$userId');
     final http.Response response = await _client.delete(url);
     if (response.statusCode != 204) {
       throw const BookApiException('Failed to delete book');
@@ -188,7 +188,7 @@ class BookApi {
     required String bookId,
   }) async {
     final Uri url =
-        Uri.parse('$_baseUrl/v1/books/$bookId/progress?user_id=$userId');
+        Uri.parse('$baseUrl/v1/books/$bookId/progress?user_id=$userId');
     final http.Response response = await _client.get(url);
     if (response.statusCode == 404) return null;
     if (response.statusCode != 200) {
@@ -207,7 +207,7 @@ class BookApi {
     required ReadingProgressModel progress,
   }) async {
     final Uri url =
-        Uri.parse('$_baseUrl/v1/books/$bookId/progress?user_id=$userId');
+        Uri.parse('$baseUrl/v1/books/$bookId/progress?user_id=$userId');
     final Map<String, dynamic> body = progress.toJson();
     body['user_id'] = userId;
     await _client.put(
@@ -225,7 +225,7 @@ class BookApi {
     required int chapterIndex,
   }) async {
     final Uri url = Uri.parse(
-      '$_baseUrl/v1/books/$bookId/chapters/$chapterIndex/content?user_id=$userId',
+      '$baseUrl/v1/books/$bookId/chapters/$chapterIndex/content?user_id=$userId',
     );
     final http.Response response = await _client.get(url);
     if (response.statusCode != 200) {
