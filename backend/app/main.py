@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -23,11 +24,21 @@ from app.api import (
 from app.db import init_db
 from app.settings import get_settings
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s │ %(levelname)-7s │ %(name)s │ %(message)s",
+    datefmt="%H:%M:%S",
+)
+log = logging.getLogger("river_reader")
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    log.info("── River Reader backend starting ──")
     init_db()
+    log.info("── Database initialised, ready to serve ──")
     yield
+    log.info("── River Reader backend shutting down ──")
 
 
 def create_app() -> FastAPI:
@@ -60,7 +71,7 @@ def create_app() -> FastAPI:
     @application.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
-        print(f"{request.method} {request.url} - Validation Error: {exc_str}")
+        log.warning("Validation error %s %s – %s", request.method, request.url.path, exc_str)
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             content={"detail": exc.errors(), "body": exc.body},

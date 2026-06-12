@@ -13,6 +13,13 @@ class GameDeckItemRead {
     required this.correctAnswer,
     this.definition,
     this.bookTitle,
+    this.correctSentence,
+    this.clashSentence,
+    this.explanation,
+    this.synonyms = const <String>[],
+    this.misfitWord,
+    this.statement,
+    this.isTrue,
   });
 
   final String gameType;
@@ -24,6 +31,16 @@ class GameDeckItemRead {
   final String correctAnswer;
   final String? definition;
   final String? bookTitle;
+  // context_clash
+  final String? correctSentence;
+  final String? clashSentence;
+  final String? explanation;
+  // odd_one_out
+  final List<String> synonyms;
+  final String? misfitWord;
+  // true_or_bluff
+  final String? statement;
+  final bool? isTrue;
 
   factory GameDeckItemRead.fromJson(Map<String, dynamic> json) {
     return GameDeckItemRead(
@@ -38,6 +55,15 @@ class GameDeckItemRead {
       correctAnswer: json['correct_answer'] as String,
       definition: json['definition'] as String?,
       bookTitle: json['book_title'] as String?,
+      correctSentence: json['correct_sentence'] as String?,
+      clashSentence: json['clash_sentence'] as String?,
+      explanation: json['explanation'] as String?,
+      synonyms: ((json['synonyms'] as List<dynamic>?) ?? <dynamic>[])
+          .map((dynamic e) => e as String)
+          .toList(),
+      misfitWord: json['misfit_word'] as String?,
+      statement: json['statement'] as String?,
+      isTrue: json['is_true'] as bool?,
     );
   }
 }

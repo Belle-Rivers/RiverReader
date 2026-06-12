@@ -179,6 +179,16 @@ class GameDeckItemRead(BaseModel):
     correct_answer: str
     definition: str | None = None
     book_title: str | None = None
+    # context_clash fields
+    correct_sentence: str | None = None
+    clash_sentence: str | None = None
+    explanation: str | None = None
+    # odd_one_out fields
+    synonyms: list[str] = Field(default_factory=list)
+    misfit_word: str | None = None
+    # true_or_bluff fields
+    statement: str | None = None
+    is_true: bool | None = None
 
 
 class DictionaryEntryRead(BaseModel):

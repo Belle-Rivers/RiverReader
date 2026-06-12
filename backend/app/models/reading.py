@@ -114,3 +114,17 @@ class LlmCache(SQLModel, table=True):
     cache_key: str = Field(max_length=256, unique=True, index=True)
     payload_json: str
     created_at: datetime = Field(default_factory=utc_now)
+
+
+class GameCache(SQLModel, table=True):
+    __tablename__ = "game_cache"
+
+    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    word: str = Field(max_length=128, index=True)
+    word_normalized: str = Field(max_length=128, unique=True, index=True)
+    context_clash_json: str | None = None
+    odd_one_out_json: str | None = None
+    true_or_bluff_json: str | None = None
+    generation_status: str = Field(default="Pending", max_length=16)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     api_v1_prefix: str = "/v1"
     ai_enabled: bool = False
+    groq_api_key: str = ""
     cors_allowed_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5000",

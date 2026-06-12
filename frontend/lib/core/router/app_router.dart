@@ -61,6 +61,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (BuildContext context, GoRouterState state) => const GameSessionPage(kind: GameSessionKind.matchMeanings),
       ),
       GoRoute(
+        path: '/games/context-clash',
+        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(kind: GameSessionKind.contextClash),
+      ),
+      GoRoute(
+        path: '/games/odd-one-out',
+        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(kind: GameSessionKind.oddOneOut),
+      ),
+      GoRoute(
+        path: '/games/true-or-bluff',
+        builder: (BuildContext context, GoRouterState state) => const GameSessionPage(kind: GameSessionKind.trueOrBluff),
+      ),
+      GoRoute(
         path: '/settings',
         builder: (BuildContext context, GoRouterState state) => const SettingsPage(),
       ),
