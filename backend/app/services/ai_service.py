@@ -25,9 +25,15 @@ Generate game content matching the exact JSON structure defined below.
 Constraints:
 - Sentences must match the readability profile of a B1/B2 level English reader.
 - Avoid academic, archaic, or esoteric terminology in definitions.
-- For "context_clash": the correct_sentence uses the word naturally; the clash_sentence is syntactically correct but contextually absurd (replace the target word with a different vault word to make it absurd).
-- For "odd_one_out": provide 3 genuine synonyms of the target word and exactly 1 misfit word with no semantic overlap.
-- For "true_or_bluff": generate a clear declarative condition statement that is TRUE about the word's meaning.
+
+For "context_clash":
+- You must create BOTH sentences yourself. Do NOT copy the context sentence from the book.
+- "correct_sentence": a natural sentence that uses "{word}" correctly and makes logical sense.
+- "clash_sentence": a sentence that is syntactically correct and sounds natural, but is contextually absurd because it uses "{word}" in a way that contradicts its meaning.
+- "explanation": explain WHY the correct sentence is right AND why the clash sentence is wrong. This explanation is shown to the user after they answer, so it must teach them the word's meaning by contrasting both sentences.
+
+For "odd_one_out": provide 3 genuine synonyms of the target word and exactly 1 misfit word with no semantic overlap.
+For "true_or_bluff": generate a clear declarative condition statement that is TRUE about the word's meaning.
 
 Your output must strictly be raw JSON matching this schema:
 {{
@@ -73,6 +79,15 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
     if existing and existing.generation_status == "Completed":
         log.info("Game cache hit for %r – skipping Groq call", word)
         return _parse_cache(existing)
+
+    if existing is None:
+        session.add(GameCache(word=word.strip(), word_normalized=word_normalized))
+        session.commit()
+    elif existing.generation_status == "Failed":
+        existing.generation_status = "Pending"
+        existing.updated_at = datetime.now(timezone.utc)
+        session.add(existing)
+        session.commit()
 
     log.info("Generating game content via Groq for %r …", word)
 

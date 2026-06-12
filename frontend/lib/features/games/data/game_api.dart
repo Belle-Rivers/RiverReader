@@ -74,6 +74,23 @@ class GameApi {
     defaultValue: 'http://localhost:8000',
   );
 
+  Future<void> triggerBackfill(String userId) async {
+    final Uri url = Uri.parse('$_baseUrl/v1/games/backfill/$userId');
+    final http.Response response = await http.post(url);
+    if (response.statusCode != 200) {
+      throw Exception('triggerBackfill failed: ${response.statusCode} ${response.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCacheStatus(String userId) async {
+    final Uri url = Uri.parse('$_baseUrl/v1/games/cache-status?user_id=$userId');
+    final http.Response response = await http.get(url);
+    if (response.statusCode != 200) {
+      throw Exception('getCacheStatus failed: ${response.statusCode} ${response.body}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<List<GameDeckItemRead>> getDeck({
     required String userId,
     required String type,

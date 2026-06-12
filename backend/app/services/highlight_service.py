@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.models import Highlight
+from app.models import GameCache, Highlight
 from app.schemas import HighlightCreate, HighlightRead
 from app.services import book_service, srs_service
 
@@ -31,7 +31,23 @@ def create_highlight(session: Session, data: HighlightCreate) -> HighlightRead |
     session.commit()
     session.refresh(highlight)
     srs_service.create_initial_srs_item(session, highlight.id)
+    ensure_game_cache_pending(session, data.target_word.strip())
     return _read_highlight(session, highlight)
+
+
+def ensure_game_cache_pending(session: Session, word: str) -> None:
+    """Insert a Pending GameCache row for 'word' if one does not already exist.
+
+    This guarantees the background backfill worker will pick the word up even
+    if the in-request AI generation is skipped (e.g. offline reading, AI disabled).
+    """
+    word_normalized = word.strip().lower()
+    existing = session.exec(
+        select(GameCache).where(GameCache.word_normalized == word_normalized)
+    ).first()
+    if existing is None:
+        session.add(GameCache(word=word, word_normalized=word_normalized))
+        session.commit()
 
 
 def list_highlights(

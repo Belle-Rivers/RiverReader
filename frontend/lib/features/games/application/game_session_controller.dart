@@ -501,6 +501,16 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     return null;
   }
 
+  bool _isGenericAnswerCorrect(GameDeckItemRead item, String selectedAnswer) {
+    if (kind == GameSessionKind.contextClash) {
+      // UI shuffles sentences into slots A/B; answers are labels, not sentence text.
+      final bool swapOrder = item.targetWord.hashCode.isEven;
+      final String correctLabel = swapOrder ? 'B' : 'A';
+      return selectedAnswer.toUpperCase() == correctLabel;
+    }
+    return selectedAnswer.toLowerCase() == item.correctAnswer.toLowerCase();
+  }
+
   // ---- Generic game selection (context_clash, odd_one_out, true_or_bluff) ----
 
   Future<void> selectGenericAnswer(String selectedAnswer) async {
@@ -514,7 +524,7 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
       return;
     }
 
-    final bool correct = selectedAnswer.toLowerCase() == item.correctAnswer.toLowerCase();
+    final bool correct = _isGenericAnswerCorrect(item, selectedAnswer);
     final int elapsed = _genericQuestionSeconds - state.secondsLeftGeneric;
     final int nextStreak = correct ? state.comboStreak + 1 : 0;
     final int comboMult = nextStreak < 1 ? 1 : nextStreak;

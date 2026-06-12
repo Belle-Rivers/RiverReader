@@ -680,16 +680,59 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
     if (item == null) return const SizedBox.shrink();
     final bool? ok = vm.lastCorrect;
     final String headline = ok == true ? 'Correct!' : ok == false ? 'Not quite.' : "Time's up.";
-    final String body = item.explanation ?? '';
+    final String explanation = item.explanation ?? '';
+    final String correctSentence = item.correctSentence ?? '';
+    final String clashSentence = item.clashSentence ?? '';
     return RiverCard(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(headline, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-          if (body.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          // Show the correct sentence with green check
+          if (correctSentence.isNotEmpty) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.check_circle_rounded, size: 18, color: AppColors.mint),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    correctSentence,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.35,
+                      color: AppColors.mint.withValues(alpha: .9),
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
-            Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.35)),
+          ],
+          // Show the clash sentence with red X
+          if (clashSentence.isNotEmpty) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.cancel_rounded, size: 18, color: cs.error),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    clashSentence,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      height: 1.35,
+                      color: cs.error.withValues(alpha: .8),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          // Show the explanation
+          if (explanation.isNotEmpty) ...[
+            Text(explanation, style: theme.textTheme.bodyMedium?.copyWith(height: 1.35)),
           ],
           const SizedBox(height: 14),
           FilledButton(

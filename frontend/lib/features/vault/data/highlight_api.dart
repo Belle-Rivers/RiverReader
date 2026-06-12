@@ -124,19 +124,23 @@ class HighlightApi {
   }
 
   /// Tries to sync all offline queued highlights. Should be called on app launch or network resume.
-  Future<void> syncOfflineHighlights() async {
+  /// Returns user ids whose highlights were successfully uploaded (for game backfill).
+  Future<Set<String>> syncOfflineHighlights() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final List<PendingHighlight> queue = await _readOfflineQueue(prefs);
-    if (queue.isEmpty) return;
+    if (queue.isEmpty) return <String>{};
     final List<PendingHighlight> failedItems = <PendingHighlight>[];
+    final Set<String> syncedUserIds = <String>{};
     for (final PendingHighlight item in queue) {
       try {
         await _postHighlight(item.toHighlightCreateModel());
+        syncedUserIds.add(item.userId);
       } catch (_) {
         failedItems.add(item);
       }
     }
     await _writeOfflineQueue(prefs, failedItems);
+    return syncedUserIds;
   }
 }
 
