@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/app_theme.dart';
@@ -104,16 +105,16 @@ class _RiverBottomNav extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
       child: Row(
         children: [
-          _item(context, RiverTab.home, Icons.home_outlined, Icons.home_rounded, 'Home', '/'),
-          _item(context, RiverTab.shelf, Icons.view_agenda_outlined, Icons.view_agenda_rounded, 'Shelf', '/shelf'),
-          _item(context, RiverTab.game, Icons.sports_esports_outlined, Icons.sports_esports_rounded, 'Game', '/games'),
-          _item(context, RiverTab.vault, Icons.inventory_2_outlined, Icons.inventory_2_rounded, 'Vault', '/vault'),
+          _item(context, RiverTab.home, const Icon(Icons.home_outlined), const Icon(Icons.home_rounded), 'Home', '/'),
+          _item(context, RiverTab.shelf, const Icon(Icons.auto_stories_outlined), const Icon(Icons.auto_stories_rounded), 'Shelf', '/shelf'),
+          _item(context, RiverTab.game, const Icon(Icons.sports_esports_outlined), const Icon(Icons.sports_esports_rounded), 'Game', '/games'),
+          _item(context, RiverTab.vault, const FaIcon(FontAwesomeIcons.gem), const FaIcon(FontAwesomeIcons.gem), 'Vault', '/vault'),
         ],
       ),
     );
   }
 
-  Widget _item(BuildContext context, RiverTab current, IconData icon, IconData activeIcon, String label, String path) {
+  Widget _item(BuildContext context, RiverTab current, Widget icon, Widget activeIcon, String label, String path) {
     final active = tab == current;
     final cs = Theme.of(context).colorScheme;
     return Expanded(
@@ -130,7 +131,7 @@ class _RiverBottomNav extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(active ? activeIcon : icon, color: active ? cs.onPrimary : cs.onSurfaceVariant),
+              IconTheme(data: IconThemeData(color: active ? cs.onPrimary : cs.onSurfaceVariant, size: 24), child: active ? activeIcon : icon),
               const SizedBox(height: 2),
               Text(label, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: active ? cs.onPrimary : cs.onSurfaceVariant)),
             ],

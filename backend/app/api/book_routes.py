@@ -151,7 +151,7 @@ def get_book_cover(book_id: UUID, user_id: UUID, session: SessionDep):
 
 
 @book_router.get("/{book_id}/resources/{resource_path:path}", response_class=Response)
-def get_book_resource(book_id: UUID, resource_path: str, user_id: UUID, session: SessionDep):
+def get_book_resource(book_id: UUID, resource_path: str, session: SessionDep, user_id: UUID | None = None):
     file_path = f"data/books/{book_id}.epub"
     if not os.path.exists(file_path):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="book file not found")

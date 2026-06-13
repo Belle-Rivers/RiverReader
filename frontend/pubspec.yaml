@@ -18,6 +18,7 @@ dependencies:
   file_picker: ^8.1.4
   http_parser: ^4.1.0
   flutter_inappwebview: ^6.0.0 # From task 1.1 in Epic 1[F01]
+  font_awesome_flutter: ^10.8.0
   river_reader_backend:
     path: ../backend
 

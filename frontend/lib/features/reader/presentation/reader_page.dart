@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../library/data/book_api.dart';
@@ -46,6 +47,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   String? _chapterLoadError;
   _ReaderDictHint? _dictHint;
   Timer? _dictHintTimer;
+  final Map<int, BookChapterContentModel> _chapterCache = {};
 
   @override
   void initState() {
@@ -239,6 +241,29 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }) async {
     final String? userId = ref.read(sessionUserIdProvider);
     if (userId == null) return;
+
+    final BookChapterContentModel? cached = _chapterCache[chapterIndex];
+    if (cached != null) {
+      if (!mounted) return;
+      setState(() {
+        _activeChapterIndex = chapterIndex;
+        _activeChapterTitle = cached.chapterTitle ?? 'Chapter ${chapterIndex + 1}';
+        _chapterHtml = cached.contentHtml;
+        _progressPercent = _calculateProgressPercent(chapterIndex);
+        _isChapterLoading = false;
+        _chapterLoadError = null;
+      });
+      if (persistProgress) {
+        await ref.read(readerControllerProvider(widget.bookId).notifier).saveProgress(
+              chapterIndex: chapterIndex,
+              chapterTitle: _activeChapterTitle,
+              progressPercent: _progressPercent,
+            );
+      }
+      _preloadAdjacentChapters(userId);
+      return;
+    }
+
     if (mounted) {
       setState(() {
         _isChapterLoading = true;
@@ -253,6 +278,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         chapterIndex: chapterIndex,
       );
       if (!mounted) return;
+      _chapterCache[chapterIndex] = chapter;
       setState(() {
         _activeChapterIndex = chapterIndex;
         _activeChapterTitle = chapter.chapterTitle ?? 'Chapter ${chapterIndex + 1}';
@@ -267,12 +293,37 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               progressPercent: _progressPercent,
             );
       }
+      _preloadAdjacentChapters(userId);
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _isChapterLoading = false;
         _chapterLoadError = 'Unable to load chapter content.';
       });
+    }
+  }
+
+  void _preloadAdjacentChapters(String userId) {
+    final List<BookChapterApiModel> chapters = _bookChapters();
+    final int total = chapters.length;
+    for (final int offset in [-1, 1]) {
+      final int idx = _activeChapterIndex + offset;
+      if (idx >= 0 && idx < total && !_chapterCache.containsKey(idx)) {
+        unawaited(_fetchAndCacheChapter(userId, idx));
+      }
+    }
+  }
+
+  Future<void> _fetchAndCacheChapter(String userId, int chapterIndex) async {
+    try {
+      final BookChapterContentModel chapter = await BookApi().getChapterContent(
+        userId: userId,
+        bookId: widget.bookId,
+        chapterIndex: chapterIndex,
+      );
+      _chapterCache[chapterIndex] = chapter;
+    } catch (_) {
+      // Silently ignore preload failures — user can still navigate manually.
     }
   }
   Future<void> _applyReaderFontSize() async {
@@ -350,6 +401,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     #chapter-root, #chapter-root * {
       background: transparent !important;
       color: inherit !important;
+      ${!useOriginalFont ? "font-family: 'DynaPuff', cursive !important;" : ''}
     }
     .ghost-captured { animation: ghostGlow 420ms ease-out; background: rgba(255, 238, 186, 0.78); border-radius: 4px; }
     @keyframes ghostGlow {
@@ -665,7 +717,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     icon: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        const Icon(Icons.inventory_2_outlined, size: 28),
+                        const FaIcon(FontAwesomeIcons.gem, size: 28),
                         Consumer(
                           builder: (context, ref, child) {
                             final countAsync = ref.watch(bookVaultCountProvider(widget.bookId));
@@ -785,6 +837,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                 },
                                 onLoadStop: (_, __) {
                                   unawaited(_applyReaderFontSize());
+                                },
+                                shouldOverrideUrlLoading: (controller, navigationAction) async {
+                                  final uri = navigationAction.request.url;
+                                  if (uri == null) return NavigationActionPolicy.ALLOW;
+
+                                  final String urlPath = uri.path;
+                                  const String resMarker = '/resources/';
+                                  final int resIdx = urlPath.indexOf(resMarker);
+                                  if (resIdx < 0) return NavigationActionPolicy.ALLOW;
+
+                                  final String targetHref = urlPath.substring(resIdx + resMarker.length);
+                                  if (targetHref.isEmpty) return NavigationActionPolicy.ALLOW;
+
+                                  final List<BookChapterApiModel> chapters = _bookChapters();
+                                  for (final BookChapterApiModel ch in chapters) {
+                                    if (ch.href != null && ch.href == targetHref) {
+                                      if (!mounted) return NavigationActionPolicy.CANCEL;
+                                      await _loadChapterContent(
+                                        chapterIndex: ch.chapterIndex,
+                                        persistProgress: true,
+                                      );
+                                      return NavigationActionPolicy.CANCEL;
+                                    }
+                                  }
+                                  return NavigationActionPolicy.ALLOW;
                                 },
                               ),
                             ),

@@ -3,6 +3,7 @@ import re
 import shutil
 import zipfile
 import hashlib
+import urllib.parse
 from uuid import UUID
 from xml.etree import ElementTree as ET
 from fastapi import UploadFile
@@ -120,6 +121,8 @@ def parse_epub_file(file_path: str, user_id: UUID) -> BookCreate:
             try:
                 toc_xml = archive.read(toc_path)
                 toc_tree = ET.fromstring(toc_xml)
+                # NCX content/src hrefs are relative to the NCX file's location in the archive
+                toc_archive_dir = os.path.dirname(toc_path)
                 for navPoint in toc_tree.findall('.//ncx:navPoint', NS):
                     navLabel = navPoint.find('ncx:navLabel', NS)
                     content = navPoint.find('ncx:content', NS)
@@ -127,9 +130,8 @@ def parse_epub_file(file_path: str, user_id: UUID) -> BookCreate:
                         text_elem = navLabel.find('ncx:text', NS)
                         src = content.get('src')
                         if text_elem is not None and text_elem.text and src:
-                            clean_src = src.split('#')[0]
-                            toc_dir = os.path.dirname(toc_href)
-                            resolved_href = os.path.normpath(os.path.join(toc_dir, clean_src) if toc_dir else clean_src).replace("\\", "/")
+                            clean_src = urllib.parse.unquote(src.split('#')[0])
+                            resolved_href = os.path.normpath(os.path.join(toc_archive_dir, clean_src) if toc_archive_dir else clean_src).replace("\\", "/")
                             href_to_title[resolved_href] = text_elem.text.strip()
             except Exception:
                 pass
