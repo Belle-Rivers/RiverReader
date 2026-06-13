@@ -8,6 +8,7 @@ import '../../auth/application/current_user_provider.dart';
 import '../../home/application/home_provider.dart';
 import '../../vault/application/vault_provider.dart';
 import '../data/game_api.dart';
+import 'game_decks_provider.dart';
 
 enum GameSessionKind {
   completeSentence,
@@ -143,9 +144,6 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
   bool _clozeTimeoutInProgress = false;
 
   static const int _baseXp = 10;
-  static const int _clozeLimit = 8;
-  static const int _matchLimit = 5;
-  static const int _newGameLimit = 8;
   static const int _clozePerQuestionSeconds = 45;
   static const int _matchRoundSeconds = 90;
   static const int _matchMissPenaltySeconds = 3;
@@ -186,10 +184,13 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     }
     state = const GameSessionVm(status: GameLoadStatus.loading);
     try {
-      final GameApi api = ref.read(gameApiProvider);
-      final int limit = _isMatch ? _matchLimit : (_isCloze ? _clozeLimit : _newGameLimit);
-      final List<GameDeckItemRead> deck =
-          await api.getDeck(userId: userId, type: _apiGameType, limit: limit);
+      GameDecksBundle bundle = ref.read(gameDecksProvider).value ?? const GameDecksBundle();
+      List<GameDeckItemRead> deck = deckForKind(bundle, kind);
+      if (deck.isEmpty) {
+        await ref.read(gameDecksProvider.notifier).refreshDecks();
+        bundle = ref.read(gameDecksProvider).value ?? const GameDecksBundle();
+        deck = deckForKind(bundle, kind);
+      }
       if (deck.isEmpty) {
         state = const GameSessionVm(status: GameLoadStatus.empty);
         return;
@@ -583,5 +584,8 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     _startGenericTimer();
   }
 
-  Future<void> retryLoad() => _load();
+  Future<void> retryLoad() async {
+    await ref.read(gameDecksProvider.notifier).refreshDecks();
+    await _load();
+  }
 }

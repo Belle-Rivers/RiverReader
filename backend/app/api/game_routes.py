@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 
 from app.db import SessionDep, get_session
-from app.schemas import GameAnswerCreate, GameDeckItemRead, ReviewEventRead
+from app.schemas import GameAnswerCreate, GameDeckItemRead, GameDecksRead, ReviewEventRead
 from app.services import game_service
 
 log = logging.getLogger("river_reader.games")
@@ -30,6 +30,7 @@ def _backfill_worker(user_id: UUID | None = None) -> None:
     global _backfill_running
     from app.models import GameCache, Highlight
     from app.services import ai_service
+    from app.services.ai_service import _cache_needs_regeneration
     from app.services.highlight_service import ensure_game_cache_pending
     from sqlmodel import select
 
@@ -62,8 +63,8 @@ def _backfill_worker(user_id: UUID | None = None) -> None:
             cached = session.exec(
                 select(GameCache).where(GameCache.word_normalized == word_normalized)
             ).first()
-            if cached is None or cached.generation_status != "Completed":
-                if cached is not None and cached.generation_status == "Failed":
+            if cached is None or _cache_needs_regeneration(cached):
+                if cached is not None and cached.generation_status in ("Failed", "Completed"):
                     cached.generation_status = "Pending"
                     session.add(cached)
                     session.commit()
@@ -122,7 +123,8 @@ def trigger_user_backfill(user_id: UUID, background_tasks: BackgroundTasks) -> d
 @game_router.get("/cache-status", summary="Game cache readiness for a user's vault words")
 def get_cache_status(user_id: UUID, session: SessionDep) -> dict:
     """Return how many vault words have AI game content ready vs still pending."""
-    from app.models import GameCache, Highlight
+    from app.models import Highlight
+    from app.services.ai_service import is_cache_complete
     from sqlmodel import select
 
     words = session.exec(
@@ -136,11 +138,7 @@ def get_cache_status(user_id: UUID, session: SessionDep) -> dict:
     total = len(words)
     completed = 0
     for word in words:
-        word_normalized = word.strip().lower()
-        cached = session.exec(
-            select(GameCache).where(GameCache.word_normalized == word_normalized)
-        ).first()
-        if cached is not None and cached.generation_status == "Completed":
+        if is_cache_complete(session, word):
             completed += 1
     pending = total - completed
     return {
@@ -149,6 +147,28 @@ def get_cache_status(user_id: UUID, session: SessionDep) -> dict:
         "pending": pending,
         "ready": pending == 0 and total > 0,
     }
+
+
+@game_router.get("/decks", response_model=GameDecksRead)
+def get_all_game_decks(
+    user_id: UUID,
+    session: SessionDep,
+    background_tasks: BackgroundTasks,
+    limit: int = Query(default=10, ge=1, le=50),
+) -> GameDecksRead:
+    """Return all game decks in one request (shared vault scan + AI cache reads)."""
+    log.info("GET /games/decks  user=%s  limit=%d", user_id, limit)
+    background_tasks.add_task(_backfill_worker, user_id)
+    decks = game_service.get_all_decks(session, user_id, limit=limit)
+    log.info(
+        "  → cloze=%d  meaning_match=%d  context_clash=%d  odd_one_out=%d  true_or_bluff=%d",
+        len(decks.cloze),
+        len(decks.meaning_match),
+        len(decks.context_clash),
+        len(decks.odd_one_out),
+        len(decks.true_or_bluff),
+    )
+    return decks
 
 
 @game_router.get("/deck", response_model=list[GameDeckItemRead])

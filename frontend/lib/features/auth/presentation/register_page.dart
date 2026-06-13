@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../../games/application/game_decks_provider.dart';
 import '../../games/application/game_session_controller.dart';
 import '../application/current_user_provider.dart';
 import '../data/registration_api.dart';
@@ -67,6 +68,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       final userId = ref.read(sessionUserIdProvider);
       if (userId != null) {
         ref.read(gameApiProvider).triggerBackfill(userId);
+        invalidateGameDecks(ref);
       }
       HapticFeedback.mediumImpact();
       if (mounted) context.go('/');

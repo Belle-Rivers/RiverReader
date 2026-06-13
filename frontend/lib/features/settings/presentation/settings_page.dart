@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/river_ui.dart';
 import '../../auth/application/current_user_provider.dart';
+import '../../reader/controllers/reader_preferences_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -56,6 +57,25 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
           ]),
+          const SizedBox(height: 24),
+          Text('READING', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 20, color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 10),
+          Consumer(
+            builder: (context, ref, child) {
+              final prefs = ref.watch(readerPreferencesProvider);
+              return SwitchListTile(
+                title: const Text('Use original book font', style: TextStyle(fontSize: 18)),
+                subtitle: Text(
+                  prefs.useOriginalFont ? 'Showing serif font from the book' : 'Showing app font (DynaPuff)',
+                  style: TextStyle(fontSize: 14, color: theme.colorScheme.onSurfaceVariant),
+                ),
+                value: prefs.useOriginalFont,
+                onChanged: (_) => ref.read(readerPreferencesProvider.notifier).toggleUseOriginalFont(),
+                activeThumbColor: AppColors.mint,
+                contentPadding: EdgeInsets.zero,
+              );
+            },
+          ),
           const SizedBox(height: 24),
           Text('ACCOUNT', style: theme.textTheme.headlineMedium?.copyWith(fontSize: 20, color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 10),

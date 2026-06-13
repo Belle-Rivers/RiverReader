@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/current_user_provider.dart';
 import '../../games/application/game_backfill_provider.dart';
+import '../../games/application/game_decks_provider.dart';
 import '../../home/application/home_provider.dart';
 import '../../reader/data/dictionary_api.dart';
 import '../data/highlight_api.dart';
@@ -56,5 +57,6 @@ class VaultSyncNotifier {
     _ref.invalidate(homeSummaryProvider);
     _ref.invalidate(bookVaultCountProvider);
     triggerGameBackfill(_ref);
+    invalidateGameDecksFromRef(_ref);
   }
 }

@@ -6,12 +6,12 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from app.models import Book, Highlight, SrsItem
-from app.schemas import GameAnswerCreate, GameDeckItemRead
+from app.schemas import GameAnswerCreate, GameDeckItemRead, GameDecksRead
 from app.services import dictionary_service, srs_service
 
 log = logging.getLogger("river_reader.games")
 
-_AI_GAME_TYPES = frozenset({"context_clash", "odd_one_out", "true_or_bluff"})
+_AI_GAME_TYPES = frozenset({"cloze", "context_clash", "odd_one_out", "true_or_bluff"})
 
 
 def get_deck(
@@ -22,24 +22,33 @@ def get_deck(
     limit: int = 10,
 ) -> list[GameDeckItemRead]:
     log.info("Game deck request: type=%s  limit=%d  user=%s", game_type, limit, user_id)
-    row_limit = min(limit * 5, 50) if game_type in _AI_GAME_TYPES else limit
+    decks = get_all_decks(session, user_id, limit=limit)
+    return getattr(decks, game_type if game_type != "definition_reveal" else "cloze", [])
+
+
+def get_all_decks(
+    session: Session,
+    user_id: UUID,
+    *,
+    limit: int = 10,
+) -> GameDecksRead:
+    """Build every game deck in one pass (single DB round-trip, shared AI cache reads)."""
+    log.info("Game decks request: limit=%d  user=%s", limit, user_id)
+    row_limit = min(limit * 5, 50)
     rows = _deck_rows(session, user_id, limit=row_limit)
     if not rows:
-        log.info("  → no vault words available, returning empty deck")
-        return []
-    log.info("  → found %d vault words for deck", len(rows))
-    if game_type == "meaning_match":
-        return _meaning_match_deck(session, user_id, rows)
-    if game_type == "context_clash":
-        return _context_clash_deck(session, user_id, rows, limit=limit)
-    if game_type == "odd_one_out":
-        return _odd_one_out_deck(session, user_id, rows, limit=limit)
-    if game_type == "true_or_bluff":
-        return _true_or_bluff_deck(session, user_id, rows, limit=limit)
-    return [
-        _build_item(session, srs_item, highlight, game_type)
-        for srs_item, highlight in rows
-    ]
+        log.info("  → no vault words available")
+        return GameDecksRead()
+
+    log.info("  → found %d vault words for decks", len(rows))
+    match_rows = rows[:limit]
+    return GameDecksRead(
+        cloze=_cloze_deck(session, user_id, rows, limit=limit),
+        meaning_match=_meaning_match_deck(session, user_id, match_rows),
+        context_clash=_context_clash_deck(session, user_id, rows, limit=limit),
+        odd_one_out=_odd_one_out_deck(session, user_id, rows, limit=limit),
+        true_or_bluff=_true_or_bluff_deck(session, user_id, rows, limit=limit),
+    )
 
 
 def answer_game(session: Session, data: GameAnswerCreate):
@@ -77,20 +86,23 @@ def _recent_items(
     return list(session.exec(statement).all())
 
 
+def _word_definition(session: Session, word: str) -> str | None:
+    entry = dictionary_service.get_entry_sync(session, word)
+    return entry.definition if entry else None
+
+
 def _meaning_match_deck(
     session: Session,
     user_id: UUID,
     rows: list[tuple[SrsItem, Highlight]],
 ) -> list[GameDeckItemRead]:
-    """Build one match round: several words share the same shuffled definition list."""
+    """Build one match round: words paired with dictionary definitions only."""
     pairs: list[tuple[SrsItem, Highlight, str]] = []
     for srs_item, highlight in rows:
-        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-        definition = dictionary_entry.definition if dictionary_entry else None
-        meaning = (definition or (highlight.context_sentence or "").strip())
-        if not meaning:
+        definition = _word_definition(session, highlight.target_word)
+        if not definition:
             continue
-        pairs.append((srs_item, highlight, meaning))
+        pairs.append((srs_item, highlight, definition.strip()))
     if not pairs:
         return []
     if len(pairs) == 1:
@@ -101,8 +113,7 @@ def _meaning_match_deck(
     out: list[GameDeckItemRead] = []
     for srs_item, highlight, meaning in pairs:
         book = session.get(Book, highlight.book_id)
-        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-        entry_def = dictionary_entry.definition if dictionary_entry else None
+        entry_def = _word_definition(session, highlight.target_word)
         out.append(
             GameDeckItemRead(
                 game_type="meaning_match",
@@ -127,8 +138,7 @@ def _meaning_match_single(
     meaning: str,
 ) -> GameDeckItemRead:
     book = session.get(Book, highlight.book_id)
-    dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-    entry_def = dictionary_entry.definition if dictionary_entry else None
+    entry_def = _word_definition(session, highlight.target_word)
     choices = _meaning_choices(session, user_id, highlight.target_word, meaning)
     return GameDeckItemRead(
         game_type="meaning_match",
@@ -143,89 +153,13 @@ def _meaning_match_single(
     )
 
 
-def _build_item(
-    session: Session,
-    srs_item: SrsItem,
-    highlight: Highlight,
-    game_type: str,
-) -> GameDeckItemRead:
-    book = session.get(Book, highlight.book_id)
-    definition = None
-    dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-    if dictionary_entry is not None:
-        definition = dictionary_entry.definition
-
-    if game_type == "definition_reveal":
-        choices = []
-        prompt = highlight.context_sentence
-        correct_answer = definition or highlight.target_word
-    else:
-        game_type = "cloze"
-        game_sentence = _get_game_sentence(dictionary_entry, highlight)
-        prompt = _blank_word(game_sentence, highlight.target_word)
-        choices = _word_choices(session, highlight.user_id, highlight.target_word)
-        correct_answer = highlight.target_word
-
-    return GameDeckItemRead(
-        game_type=game_type,
-        highlight_id=highlight.id,
-        srs_item_id=srs_item.id,
-        target_word=highlight.target_word,
-        prompt=prompt,
-        choices=choices,
-        correct_answer=correct_answer,
-        definition=definition,
-        book_title=book.title if book else None,
-    )
-
-
-def _get_game_sentence(dictionary_entry, highlight) -> str:
-    """Return the sentence used in the cloze game.
-
-    Priority:
-    1. dictionary_entries.example_sentence  — a curated standalone sentence
-    2. highlight.context_sentence           — fallback only (same sentence as in Vault)
-
-    The example_sentence is intentionally different from context_sentence so the
-    user is tested on knowing the word, not just remembering where they saw it.
-    """
-    if dictionary_entry is not None and dictionary_entry.example_sentence:
-        return dictionary_entry.example_sentence
-    return highlight.context_sentence
-
-
-def _blank_word(sentence: str, target_word: str) -> str:
-    return re.sub(re.escape(target_word), "_____", sentence, count=1, flags=re.IGNORECASE)
-
-
-def _word_choices(session: Session, user_id: UUID, correct: str) -> list[str]:
-    statement = (
-        select(Highlight.target_word)
-        .where(
-            Highlight.user_id == user_id,
-            Highlight.is_deleted == False,  # noqa: E712
-            Highlight.target_word != correct,
-        )
-        .order_by(Highlight.created_at.desc())
-        .limit(3)
-    )
-    choices = [word for word in session.exec(statement).all()]
-    choices.append(correct)
-    return sorted(dict.fromkeys(choices), key=str.lower)
-
-
 def _meaning_choices(
     session: Session,
     user_id: UUID,
     correct_word: str,
     correct_definition: str | None,
 ) -> list[str]:
-    """Return the correct definition plus up to 3 distractor definitions.
-
-    Distractors are pulled from other dictionary entries for words in the user's
-    vault. Using definitions (not context sentences) keeps the game semantically
-    clean and unambiguous.
-    """
+    """Return the correct definition plus up to 3 distractor definitions from the vault."""
     from app.models import DictionaryEntry
 
     choices: list[str] = []
@@ -255,6 +189,78 @@ def _meaning_choices(
     return sorted(dict.fromkeys(choices))
 
 
+def _blank_word(sentence: str, target_word: str) -> str:
+    return re.sub(re.escape(target_word), "_____", sentence, count=1, flags=re.IGNORECASE)
+
+
+def _word_choices(session: Session, user_id: UUID, correct: str) -> list[str]:
+    statement = (
+        select(Highlight.target_word)
+        .where(
+            Highlight.user_id == user_id,
+            Highlight.is_deleted == False,  # noqa: E712
+            Highlight.target_word != correct,
+        )
+        .order_by(Highlight.created_at.desc())
+        .limit(3)
+    )
+    choices = [word for word in session.exec(statement).all()]
+    choices.append(correct)
+    return sorted(dict.fromkeys(choices), key=str.lower)
+
+
+# ---------------------------------------------------------------------------
+# Cloze: fill in the blank using an AI-generated sentence
+# ---------------------------------------------------------------------------
+
+def _cloze_deck(
+    session: Session,
+    user_id: UUID,
+    rows: list[tuple[SrsItem, Highlight]],
+    *,
+    limit: int,
+) -> list[GameDeckItemRead]:
+    from app.services.ai_service import get_cached_game_content
+
+    log.info("  Building cloze deck…")
+    items: list[GameDeckItemRead] = []
+
+    for srs_item, highlight in rows:
+        if len(items) >= limit:
+            break
+
+        cached = get_cached_game_content(session, highlight.target_word)
+        if not cached or "cloze" not in cached:
+            log.debug("  → skipping %r (AI cache not ready)", highlight.target_word)
+            continue
+
+        sentence = cached["cloze"].get("sentence", "")
+        if not sentence:
+            continue
+
+        book = session.get(Book, highlight.book_id)
+        definition = _word_definition(session, highlight.target_word)
+        prompt = _blank_word(sentence, highlight.target_word)
+        if "_____" not in prompt:
+            continue
+
+        items.append(GameDeckItemRead(
+            game_type="cloze",
+            highlight_id=highlight.id,
+            srs_item_id=srs_item.id,
+            target_word=highlight.target_word,
+            prompt=prompt,
+            choices=_word_choices(session, user_id, highlight.target_word),
+            correct_answer=highlight.target_word,
+            definition=definition,
+            book_title=book.title if book else None,
+        ))
+
+    random.shuffle(items)
+    log.info("  → cloze: %d items ready (AI cache)", len(items))
+    return items
+
+
 # ---------------------------------------------------------------------------
 # Context Clash: pick the sentence that makes logical sense
 # ---------------------------------------------------------------------------
@@ -266,7 +272,6 @@ def _context_clash_deck(
     *,
     limit: int,
 ) -> list[GameDeckItemRead]:
-    """Build context-clash items from AI-generated sentences (not book context)."""
     from app.services.ai_service import get_cached_game_content
 
     log.info("  Building context_clash deck…")
@@ -289,8 +294,7 @@ def _context_clash_deck(
             continue
 
         book = session.get(Book, highlight.book_id)
-        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-        definition = dictionary_entry.definition if dictionary_entry else None
+        definition = _word_definition(session, highlight.target_word)
 
         items.append(GameDeckItemRead(
             game_type="context_clash",
@@ -316,6 +320,26 @@ def _context_clash_deck(
 # Odd One Out: 3 synonyms + 1 misfit word
 # ---------------------------------------------------------------------------
 
+def _odd_one_out_choice_definitions(
+    session: Session,
+    synonyms: list[str],
+    misfit_word: str,
+    misfit_definition: str | None,
+) -> dict[str, str]:
+    defs: dict[str, str] = {}
+    for word in synonyms:
+        definition = _word_definition(session, word)
+        if definition:
+            defs[word] = definition
+    if misfit_definition:
+        defs[misfit_word] = misfit_definition
+    elif misfit_word not in defs:
+        definition = _word_definition(session, misfit_word)
+        if definition:
+            defs[misfit_word] = definition
+    return defs
+
+
 def _odd_one_out_deck(
     session: Session,
     user_id: UUID,
@@ -323,7 +347,6 @@ def _odd_one_out_deck(
     *,
     limit: int,
 ) -> list[GameDeckItemRead]:
-    """Build odd-one-out items from AI-generated synonym sets."""
     from app.services.ai_service import get_cached_game_content
 
     log.info("  Building odd_one_out deck…")
@@ -341,12 +364,15 @@ def _odd_one_out_deck(
         oo = cached["odd_one_out"]
         synonyms = oo.get("synonyms", [])
         misfit_word = oo.get("misfit_word", "")
+        misfit_definition = oo.get("misfit_definition")
         if not synonyms or not misfit_word or len(synonyms) < 2:
             continue
 
         book = session.get(Book, highlight.book_id)
-        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-        definition = dictionary_entry.definition if dictionary_entry else None
+        definition = _word_definition(session, highlight.target_word)
+        choice_defs = _odd_one_out_choice_definitions(
+            session, synonyms[:3], misfit_word, misfit_definition
+        )
 
         items.append(GameDeckItemRead(
             game_type="odd_one_out",
@@ -360,6 +386,7 @@ def _odd_one_out_deck(
             book_title=book.title if book else None,
             synonyms=synonyms[:3],
             misfit_word=misfit_word,
+            choice_definitions=choice_defs,
         ))
 
     random.shuffle(items)
@@ -378,7 +405,6 @@ def _true_or_bluff_deck(
     *,
     limit: int,
 ) -> list[GameDeckItemRead]:
-    """Build true-or-bluff items from AI-generated statements."""
     from app.services.ai_service import get_cached_game_content
 
     log.info("  Building true_or_bluff deck…")
@@ -400,8 +426,7 @@ def _true_or_bluff_deck(
             continue
 
         book = session.get(Book, highlight.book_id)
-        dictionary_entry = dictionary_service.get_entry_sync(session, highlight.target_word)
-        definition = dictionary_entry.definition if dictionary_entry else None
+        definition = _word_definition(session, highlight.target_word)
         correct_answer = "TRUE" if is_true else "BLUFF"
 
         items.append(GameDeckItemRead(

@@ -189,6 +189,16 @@ class GameDeckItemRead(BaseModel):
     # true_or_bluff fields
     statement: str | None = None
     is_true: bool | None = None
+    # odd_one_out: brief definitions keyed by choice word (for wrong-answer feedback)
+    choice_definitions: dict[str, str] = Field(default_factory=dict)
+
+
+class GameDecksRead(BaseModel):
+    cloze: list[GameDeckItemRead] = Field(default_factory=list)
+    meaning_match: list[GameDeckItemRead] = Field(default_factory=list)
+    context_clash: list[GameDeckItemRead] = Field(default_factory=list)
+    odd_one_out: list[GameDeckItemRead] = Field(default_factory=list)
+    true_or_bluff: list[GameDeckItemRead] = Field(default_factory=list)
 
 
 class DictionaryEntryRead(BaseModel):

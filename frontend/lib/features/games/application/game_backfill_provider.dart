@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/current_user_provider.dart';
 import '../data/game_api.dart';
+import 'game_decks_provider.dart';
 import 'game_session_controller.dart';
 
 /// Keeps AI game content generation running in the background while the user
@@ -19,6 +20,7 @@ final gameBackfillWorkerProvider = Provider<void>((Ref ref) {
 
   final Timer timer = Timer.periodic(const Duration(seconds: 30), (_) {
     unawaited(api.triggerBackfill(userId));
+    invalidateGameDecksFromRef(ref);
   });
 
   ref.onDispose(timer.cancel);

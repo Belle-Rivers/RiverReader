@@ -864,8 +864,25 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
         : ok == false
             ? 'Not quite.'
             : "Time's up.";
-    final String? def = item.definition;
-    final String body = def != null ? '${item.targetWord} — $def' : item.targetWord;
+    final String? selected = vm.lastSelection;
+    final String? targetDef = item.definition;
+    String body;
+    if (ok == true) {
+      body = targetDef != null ? '${item.targetWord} — $targetDef' : item.targetWord;
+    } else if (ok == false && selected != null) {
+      final String? selectedDef = item.choiceDefinitions[selected];
+      if (selectedDef != null) {
+        body =
+            '"$selected" means $selectedDef. It belongs with the others — the odd word was "${item.misfitWord}".';
+      } else {
+        body =
+            '"$selected" is related to "${item.targetWord}". The odd word was "${item.misfitWord}".';
+      }
+    } else {
+      body = targetDef != null
+          ? 'The odd word was "${item.misfitWord}" — ${item.targetWord}: $targetDef'
+          : 'The odd word was "${item.misfitWord}".';
+    }
     return RiverCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1019,8 +1036,22 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
         : ok == false
             ? 'Not quite.'
             : "Time's up.";
-    final String? def = item.definition;
-    final String body = def != null ? '${item.targetWord} — $def' : item.targetWord;
+    final String statement = item.statement ?? '';
+    final bool correctIsTrue = item.isTrue == true;
+    final String correctLabel = correctIsTrue ? 'TRUE' : 'BLUFF';
+    String body;
+    if (ok == true) {
+      body = 'Right — that statement is $correctLabel.';
+    } else if (statement.isNotEmpty) {
+      body = 'The statement is $correctLabel.';
+      if (item.definition != null) {
+        body += ' ${item.targetWord} — ${item.definition}';
+      }
+    } else if (item.definition != null) {
+      body = '${item.targetWord} — ${item.definition}';
+    } else {
+      body = item.targetWord;
+    }
     return RiverCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -1028,6 +1059,16 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
         children: [
           Text(headline, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
+          if (statement.isNotEmpty && ok != true) ...[
+            Text(
+              '"$statement"',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.35,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.35)),
           const SizedBox(height: 14),
           FilledButton(

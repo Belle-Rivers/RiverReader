@@ -20,6 +20,7 @@ class GameDeckItemRead {
     this.misfitWord,
     this.statement,
     this.isTrue,
+    this.choiceDefinitions = const <String, String>{},
   });
 
   final String gameType;
@@ -41,6 +42,7 @@ class GameDeckItemRead {
   // true_or_bluff
   final String? statement;
   final bool? isTrue;
+  final Map<String, String> choiceDefinitions;
 
   factory GameDeckItemRead.fromJson(Map<String, dynamic> json) {
     return GameDeckItemRead(
@@ -64,6 +66,40 @@ class GameDeckItemRead {
       misfitWord: json['misfit_word'] as String?,
       statement: json['statement'] as String?,
       isTrue: json['is_true'] as bool?,
+      choiceDefinitions: ((json['choice_definitions'] as Map<String, dynamic>?) ?? <String, dynamic>{})
+          .map((String key, dynamic value) => MapEntry<String, String>(key, value as String)),
+    );
+  }
+}
+
+class GameDecksBundle {
+  const GameDecksBundle({
+    this.cloze = const <GameDeckItemRead>[],
+    this.meaningMatch = const <GameDeckItemRead>[],
+    this.contextClash = const <GameDeckItemRead>[],
+    this.oddOneOut = const <GameDeckItemRead>[],
+    this.trueOrBluff = const <GameDeckItemRead>[],
+  });
+
+  final List<GameDeckItemRead> cloze;
+  final List<GameDeckItemRead> meaningMatch;
+  final List<GameDeckItemRead> contextClash;
+  final List<GameDeckItemRead> oddOneOut;
+  final List<GameDeckItemRead> trueOrBluff;
+
+  factory GameDecksBundle.fromJson(Map<String, dynamic> json) {
+    List<GameDeckItemRead> parseList(String key) {
+      return ((json[key] as List<dynamic>?) ?? <dynamic>[])
+          .map((dynamic item) => GameDeckItemRead.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+
+    return GameDecksBundle(
+      cloze: parseList('cloze'),
+      meaningMatch: parseList('meaning_match'),
+      contextClash: parseList('context_clash'),
+      oddOneOut: parseList('odd_one_out'),
+      trueOrBluff: parseList('true_or_bluff'),
     );
   }
 }
@@ -89,6 +125,18 @@ class GameApi {
       throw Exception('getCacheStatus failed: ${response.statusCode} ${response.body}');
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<GameDecksBundle> getAllDecks({
+    required String userId,
+    int limit = 8,
+  }) async {
+    final Uri url = Uri.parse('$_baseUrl/v1/games/decks?user_id=$userId&limit=$limit');
+    final http.Response response = await http.get(url);
+    if (response.statusCode != 200) {
+      throw Exception('getAllDecks failed: ${response.statusCode} ${response.body}');
+    }
+    return GameDecksBundle.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
   }
 
   Future<List<GameDeckItemRead>> getDeck({

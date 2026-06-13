@@ -125,6 +125,7 @@ class GameCache(SQLModel, table=True):
     context_clash_json: str | None = None
     odd_one_out_json: str | None = None
     true_or_bluff_json: str | None = None
+    cloze_json: str | None = None
     generation_status: str = Field(default="Pending", max_length=16)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

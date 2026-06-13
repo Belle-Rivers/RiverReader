@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/river_ui.dart';
+import '../application/game_decks_provider.dart';
 import '../../vault/application/vault_provider.dart';
 
 class GamesPage extends ConsumerWidget {
@@ -13,6 +14,7 @@ class GamesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final vaultItemsAsync = ref.watch(vaultItemsProvider);
+    ref.watch(gameDecksProvider);
 
     return RiverScaffold(
       title: 'Restoration',

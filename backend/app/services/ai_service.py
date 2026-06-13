@@ -25,15 +25,26 @@ Generate game content matching the exact JSON structure defined below.
 Constraints:
 - Sentences must match the readability profile of a B1/B2 level English reader.
 - Avoid academic, archaic, or esoteric terminology in definitions.
+- Do NOT copy the context sentence from the book for any field.
 
 For "context_clash":
-- You must create BOTH sentences yourself. Do NOT copy the context sentence from the book.
 - "correct_sentence": a natural sentence that uses "{word}" correctly and makes logical sense.
-- "clash_sentence": a sentence that is syntactically correct and sounds natural, but is contextually absurd because it uses "{word}" in a way that contradicts its meaning.
-- "explanation": explain WHY the correct sentence is right AND why the clash sentence is wrong. This explanation is shown to the user after they answer, so it must teach them the word's meaning by contrasting both sentences.
+- "clash_sentence": syntactically correct but contextually absurd because "{word}" is used in a way that contradicts its meaning.
+- "explanation": explain WHY the correct sentence is right AND why the clash sentence is wrong.
 
-For "odd_one_out": provide 3 genuine synonyms of the target word and exactly 1 misfit word with no semantic overlap.
-For "true_or_bluff": generate a clear declarative condition statement that is TRUE about the word's meaning.
+For "odd_one_out":
+- Provide 3 genuine synonyms of "{word}" and exactly 1 misfit word with no semantic overlap.
+- Include a brief B1/B2 definition (max 12 words) for the misfit in "misfit_definition".
+
+For "true_or_bluff":
+- Write a fast-paced statement that uses "{word}" naturally in context — NOT a dictionary definition.
+- Good BLUFF example: "If an event is sporadic, it happens every single day." (is_true: false)
+- Good TRUE example: "A sporadic problem appears now and then, not on a fixed schedule." (is_true: true)
+- NEVER write "'{word}' means ..." or similar definition-style statements.
+- Roughly half the statements should be true and half bluff; vary the sentence pattern.
+
+For "cloze":
+- "sentence": a fresh standalone sentence that uses "{word}" correctly in a new context (different from context_clash sentences).
 
 Your output must strictly be raw JSON matching this schema:
 {{
@@ -44,11 +55,15 @@ Your output must strictly be raw JSON matching this schema:
   }},
   "odd_one_out": {{
     "synonyms": ["string", "string", "string"],
-    "misfit_word": "string"
+    "misfit_word": "string",
+    "misfit_definition": "string"
   }},
   "true_or_bluff": {{
     "statement": "string",
     "is_true": true
+  }},
+  "cloze": {{
+    "sentence": "string"
   }}
 }}"""
 
@@ -58,10 +73,58 @@ def _cache_key(word: str, context: str | None) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _is_definition_style_statement(statement: str, word: str) -> bool:
+    """Detect legacy true_or_bluff payloads that only restate dictionary definitions."""
+    lower = statement.lower().strip()
+    normalized = word.strip().lower()
+    if lower.startswith(f"'{normalized}' means") or lower.startswith(f'"{normalized}" means'):
+        return True
+    if lower.startswith(f"{normalized} means "):
+        return True
+    return False
+
+
+def _coerce_to_dict(value: object) -> dict | None:
+    """Coerce an LLM response section into a dict.
+
+    The LLM sometimes wraps the expected dict inside a single-element list,
+    e.g. ``[{"statement": ..., "is_true": ...}]`` instead of the bare dict.
+    This helper extracts the first dict from a list when that occurs.
+    """
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list) and len(value) > 0 and isinstance(value[0], dict):
+        return value[0]
+    return None
+
+
+def _cache_needs_regeneration(cache: GameCache) -> bool:
+    """Return True when cached content is missing fields or uses an outdated format."""
+    if cache.generation_status != "Completed":
+        return True
+    parsed = _parse_cache(cache)
+    if not parsed:
+        return True
+    required = ("context_clash", "odd_one_out", "true_or_bluff", "cloze")
+    if any(key not in parsed for key in required):
+        return True
+    for key in required:
+        if _coerce_to_dict(parsed[key]) is None:
+            return True
+    tb = _coerce_to_dict(parsed.get("true_or_bluff")) or {}
+    statement = tb.get("statement", "")
+    if not statement or _is_definition_style_statement(statement, cache.word):
+        return True
+    cloze = _coerce_to_dict(parsed.get("cloze")) or {}
+    if not cloze.get("sentence", ""):
+        return True
+    return False
+
+
 # ─── Public API used by highlight creation ────────────────────────────────────
 
 def generate_game_content(session: Session, word: str, context_sentence: str | None = None) -> dict | None:
-    """Call Groq to generate all 3 game payloads for a word. Cache in game_cache.
+    """Call Groq to generate all game payloads for a word. Cache in game_cache.
 
     Returns the parsed JSON dict or None on failure.
     """
@@ -72,11 +135,10 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
 
     word_normalized = word.strip().lower()
 
-    # Check if already cached
     existing = session.exec(
         select(GameCache).where(GameCache.word_normalized == word_normalized)
     ).first()
-    if existing and existing.generation_status == "Completed":
+    if existing and existing.generation_status == "Completed" and not _cache_needs_regeneration(existing):
         log.info("Game cache hit for %r – skipping Groq call", word)
         return _parse_cache(existing)
 
@@ -103,7 +165,7 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
             {"role": "user", "content": f"Generate game content for the word: {word}"},
         ],
         "temperature": 0.7,
-        "max_tokens": 1024,
+        "max_tokens": 1200,
         "response_format": {"type": "json_object"},
     }
 
@@ -134,15 +196,29 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
         _mark_failed(session, word_normalized)
         return None
 
-    # Validate the structure
-    required_keys = ["context_clash", "odd_one_out", "true_or_bluff"]
+    required_keys = ["context_clash", "odd_one_out", "true_or_bluff", "cloze"]
     for key in required_keys:
         if key not in parsed:
             log.error("Groq response missing key %r for %r", key, word)
             _mark_failed(session, word_normalized)
             return None
 
-    # Cache to game_cache
+    for key in required_keys:
+        coerced = _coerce_to_dict(parsed[key])
+        if coerced is None:
+            log.error("Groq response key %r for %r is %s and could not be coerced to dict", key, word, type(parsed[key]).__name__)
+            _mark_failed(session, word_normalized)
+            return None
+        if coerced is not parsed[key]:
+            log.warning("Groq response key %r for %r was %s, coerced to dict", key, word, type(parsed[key]).__name__)
+        parsed[key] = coerced
+
+    tb = parsed.get("true_or_bluff", {})
+    if _is_definition_style_statement(tb.get("statement", ""), word):
+        log.error("Groq returned definition-style true_or_bluff for %r", word)
+        _mark_failed(session, word_normalized)
+        return None
+
     _save_game_cache(session, word, word_normalized, parsed)
     log.info("✓ Groq game content cached for %r", word)
     return parsed
@@ -154,15 +230,23 @@ def get_cached_game_content(session: Session, word: str) -> dict | None:
     existing = session.exec(
         select(GameCache).where(GameCache.word_normalized == word_normalized)
     ).first()
-    if existing and existing.generation_status == "Completed":
+    if existing and existing.generation_status == "Completed" and not _cache_needs_regeneration(existing):
         return _parse_cache(existing)
     return None
+
+
+def is_cache_complete(session: Session, word: str) -> bool:
+    word_normalized = word.strip().lower()
+    existing = session.exec(
+        select(GameCache).where(GameCache.word_normalized == word_normalized)
+    ).first()
+    return existing is not None and not _cache_needs_regeneration(existing)
 
 
 # ─── Internal helpers ─────────────────────────────────────────────────────────
 
 def _parse_cache(cache: GameCache) -> dict | None:
-    """Parse all 3 JSON fields from a GameCache row into a single dict."""
+    """Parse all JSON fields from a GameCache row into a single dict."""
     try:
         result = {}
         if cache.context_clash_json:
@@ -171,13 +255,21 @@ def _parse_cache(cache: GameCache) -> dict | None:
             result["odd_one_out"] = json.loads(cache.odd_one_out_json)
         if cache.true_or_bluff_json:
             result["true_or_bluff"] = json.loads(cache.true_or_bluff_json)
-        return result if result else None
+        if cache.cloze_json:
+            result["cloze"] = json.loads(cache.cloze_json)
+        if not result:
+            return None
+        for key in list(result):
+            coerced = _coerce_to_dict(result[key])
+            if coerced is not None:
+                result[key] = coerced
+        return result
     except json.JSONDecodeError:
         return None
 
 
 def _save_game_cache(session: Session, word: str, word_normalized: str, data: dict) -> None:
-    """Upsert game_cache row with the 3 game payloads."""
+    """Upsert game_cache row with all game payloads."""
     existing = session.exec(
         select(GameCache).where(GameCache.word_normalized == word_normalized)
     ).first()
@@ -185,11 +277,13 @@ def _save_game_cache(session: Session, word: str, word_normalized: str, data: di
     clash_json = json.dumps(data.get("context_clash")) if data.get("context_clash") else None
     odd_json = json.dumps(data.get("odd_one_out")) if data.get("odd_one_out") else None
     bluff_json = json.dumps(data.get("true_or_bluff")) if data.get("true_or_bluff") else None
+    cloze_json = json.dumps(data.get("cloze")) if data.get("cloze") else None
 
     if existing is not None:
         existing.context_clash_json = clash_json
         existing.odd_one_out_json = odd_json
         existing.true_or_bluff_json = bluff_json
+        existing.cloze_json = cloze_json
         existing.generation_status = "Completed"
         existing.updated_at = datetime.now(timezone.utc)
     else:
@@ -199,6 +293,7 @@ def _save_game_cache(session: Session, word: str, word_normalized: str, data: di
             context_clash_json=clash_json,
             odd_one_out_json=odd_json,
             true_or_bluff_json=bluff_json,
+            cloze_json=cloze_json,
             generation_status="Completed",
         )
         session.add(entry)

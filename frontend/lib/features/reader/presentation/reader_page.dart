@@ -13,6 +13,7 @@ import '../../vault/data/highlight_api.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../vault/application/vault_provider.dart';
 import '../controllers/reader_controller.dart';
+import '../controllers/reader_preferences_provider.dart';
 import '../data/dictionary_api.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
@@ -49,7 +50,26 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   @override
   void initState() {
     super.initState();
+    ref.read(readerPreferencesProvider.notifier).init();
     Future<void>.microtask(_initializeReader);
+  }
+
+  void _reloadChapterForFontChange() {
+    final InAppWebViewController? controller = _webViewController;
+    if (controller == null || _chapterHtml == null) return;
+    controller.loadData(
+      data: _buildReaderHtml(
+        chapterHtml: _chapterHtml!,
+        chapterTitle: _activeChapterTitle ?? 'Chapter ${_activeChapterIndex + 1}',
+        textColorHex: _readerTextColorHex(context),
+        backgroundColorHex: _readerBackgroundColorHex(context),
+        useOriginalFont: ref.read(readerPreferencesProvider).useOriginalFont,
+      ),
+      mimeType: 'text/html',
+      encoding: 'utf-8',
+      baseUrl: WebUri(BookApi.baseUrl),
+    );
+    _applyReaderFontSize();
   }
 
   void _showCaptureFeedback() {
@@ -301,6 +321,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     required String chapterTitle,
     required String textColorHex,
     required String backgroundColorHex,
+    required bool useOriginalFont,
   }) {
     final String escapedHtml = jsonEncode(chapterHtml);
     final String escapedTitle = jsonEncode(chapterTitle);
@@ -311,7 +332,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=DynaPuff:wght@400..700&display=swap');
+    ${useOriginalFont ? '' : "@import url('https://fonts.googleapis.com/css2?family=DynaPuff:wght@400..700&display=swap');"}
     :root {
       color-scheme: light dark;
     }
@@ -320,7 +341,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       padding: 0;
       background: $backgroundColorHex !important;
       color: $textColorHex !important;
-      font-family: 'DynaPuff', cursive;
+      font-family: ${useOriginalFont ? "Georgia, 'Times New Roman', serif" : "'DynaPuff', cursive"};
       line-height: 1.7;
     }
     body {
@@ -604,6 +625,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final title = book?.title ?? 'Unknown Book';
 
     final progressAsync = ref.watch(readerControllerProvider(widget.bookId));
+    final readerPrefs = ref.watch(readerPreferencesProvider);
+
+    ref.listen<ReaderPreferences>(readerPreferencesProvider, (prev, next) {
+      if (prev != null && prev.useOriginalFont != next.useOriginalFont && _chapterHtml != null) {
+        _reloadChapterForFontChange();
+      }
+    });
 
     return Scaffold(
       body: SafeArea(
@@ -689,6 +717,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                         'Chapter ${_activeChapterIndex + 1}',
                                     textColorHex: readerTextHex,
                                     backgroundColorHex: readerBackgroundHex,
+                                    useOriginalFont: readerPrefs.useOriginalFont,
                                   ),
                                   mimeType: 'text/html',
                                   encoding: 'utf-8',
@@ -830,6 +859,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                     IconButton(
                       onPressed: () => unawaited(_changeReaderFontSize(1)),
                       icon: const Icon(Icons.add_rounded),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: () => ref.read(readerPreferencesProvider.notifier).toggleUseOriginalFont(),
+                      icon: Icon(
+                        readerPrefs.useOriginalFont ? Icons.font_download_outlined : Icons.font_download,
+                        size: 20,
+                      ),
+                      tooltip: readerPrefs.useOriginalFont ? 'Use app font' : 'Use original book font',
                     ),
                   ],
                 ),

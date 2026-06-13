@@ -41,6 +41,7 @@ def init_db() -> None:
     _ensure_user_profile_columns(engine)
     _ensure_dictionary_columns(engine)
     _ensure_review_event_columns(engine)
+    _ensure_game_cache_columns(engine)
 
 
 def _ensure_user_profile_columns(engine) -> None:
@@ -85,6 +86,22 @@ def _ensure_dictionary_columns(engine) -> None:
             if column_name not in existing:
                 connection.exec_driver_sql(
                     f"ALTER TABLE dictionary_entries ADD COLUMN {column_name} {column_type}"
+                )
+
+
+def _ensure_game_cache_columns(engine) -> None:
+    columns = {
+        "cloze_json": "TEXT",
+    }
+    with engine.begin() as connection:
+        existing = {
+            row[1]
+            for row in connection.exec_driver_sql("PRAGMA table_info(game_cache)").all()
+        }
+        for column_name, column_type in columns.items():
+            if column_name not in existing:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE game_cache ADD COLUMN {column_name} {column_type}"
                 )
 
 
