@@ -9,14 +9,17 @@ from sqlmodel import Session, SQLModel, create_engine
 
 from app.db import engine as engine_module
 from app.db import session as session_module
-from app.models import DictionaryEntry, GameCache, Highlight
+from app.models import Book, DictionaryEntry, GameCache, Highlight, SrsItem
 from app.services.ai_service import (
     _cache_needs_regeneration,
+    _cloze_payload_valid,
     _parse_cache,
+    _true_or_bluff_payload_valid,
     queue_replay_regeneration,
     resolve_true_or_bluff,
     resolve_word_meaning,
 )
+from app.services.game_service import _meaning_match_deck
 
 
 @pytest.fixture()
@@ -50,7 +53,8 @@ def _completed_cache(**overrides) -> GameCache:
         "true_or_bluff": {
             "true_statement": "A serene lake reflects the sky quietly.",
             "bluff_statement": "A serene lake roars like thunder.",
-            "explanation": "Serene means calm, not loud.",
+            "true_explanation": "The true statement uses serene for a calm, quiet lake.",
+            "bluff_explanation": "The bluff statement misuses serene because roaring is noisy, not calm.",
         },
         "cloze": {"sentence": "The garden felt serene at dawn.", "word_meaning": "calm and peaceful"},
     }
@@ -73,6 +77,31 @@ def test_cache_needs_regeneration_for_legacy_true_or_bluff() -> None:
     assert _cache_needs_regeneration(cache) is True
 
 
+def test_cache_needs_regeneration_for_true_or_bluff_without_target_word() -> None:
+    cache = _completed_cache()
+    tb = json.loads(cache.true_or_bluff_json)
+    tb["true_statement"] = "A quiet lake reflects the sky."
+    cache.true_or_bluff_json = json.dumps(tb)
+    assert _cache_needs_regeneration(cache) is True
+
+
+def test_cache_needs_regeneration_for_bad_cloze_form() -> None:
+    cache = _completed_cache()
+    cache.word = "buzzed"
+    cache.word_normalized = "buzzed"
+    cache.cloze_json = json.dumps(
+        {"sentence": "The crowd began to buzzed with excitement.", "word_meaning": "made a low sound"}
+    )
+    assert _cache_needs_regeneration(cache) is True
+
+
+def test_cloze_payload_valid_allows_exact_inflected_form() -> None:
+    assert _cloze_payload_valid(
+        {"sentence": "The crowd buzzed with excitement after the announcement."},
+        "buzzed",
+    )
+
+
 def test_cache_needs_regeneration_for_missing_justification() -> None:
     cache = _completed_cache()
     oo = json.loads(cache.odd_one_out_json)
@@ -85,10 +114,22 @@ def test_resolve_true_or_bluff_picks_dual_statements() -> None:
     tb = {
         "true_statement": "A serene place is quiet.",
         "bluff_statement": "A serene place is always noisy.",
-        "explanation": "Serene means calm.",
+        "true_explanation": "The true statement uses serene for a calm place.",
+        "bluff_explanation": "The bluff statement misuses serene because noisy places are not calm.",
     }
     seen = {resolve_true_or_bluff(tb)[1] for _ in range(30)}
     assert seen == {True, False}
+
+
+def test_true_or_bluff_payload_requires_side_explanations() -> None:
+    assert not _true_or_bluff_payload_valid(
+        {
+            "true_statement": "A serene lake feels calm.",
+            "bluff_statement": "A serene room is always chaotic.",
+            "explanation": "The true statement uses serene correctly.",
+        },
+        "serene",
+    )
 
 
 def test_resolve_true_or_bluff_legacy_payload() -> None:
@@ -148,3 +189,44 @@ def test_queue_replay_regeneration_when_vault_unchanged(session: Session) -> Non
     refreshed = session.get(GameCache, cache.id)
     assert refreshed is not None
     assert refreshed.generation_status == "Pending"
+
+
+def test_meaning_match_scans_past_undefined_vault_words(session: Session) -> None:
+    user_id = uuid4()
+    book = Book(user_id=user_id, title="The River")
+    session.add(book)
+    session.commit()
+
+    rows = []
+    for word in ["first", "second", "third", "fourth", "fifth"]:
+        highlight = Highlight(
+            user_id=user_id,
+            book_id=book.id,
+            target_word=word,
+            context_sentence=f"The word was {word}.",
+        )
+        session.add(highlight)
+        session.commit()
+        srs_item = SrsItem(highlight_id=highlight.id)
+        session.add(srs_item)
+        rows.append((srs_item, highlight))
+
+    for word in ["third", "fourth", "fifth"]:
+        session.add(
+            DictionaryEntry(
+                word=word,
+                word_normalized=word,
+                definition=f"{word} definition",
+                source="test",
+            )
+        )
+    session.commit()
+
+    deck = _meaning_match_deck(session, user_id, rows, limit=3)
+
+    assert [item.target_word for item in deck] == ["third", "fourth", "fifth"]
+    assert {item.correct_answer for item in deck} == {
+        "third definition",
+        "fourth definition",
+        "fifth definition",
+    }

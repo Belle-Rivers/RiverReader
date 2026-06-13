@@ -30,6 +30,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _passwordController = TextEditingController();
   late RegisterMode _mode;
   bool _isSubmitting = false;
+  bool _obscurePassword = true;
   String? _errorMessage;
 
   @override
@@ -138,7 +139,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     _field(_emailController, 'you@scholar.com'),
                     const SizedBox(height: 16),
                     _label('Password', text),
-                    _field(_passwordController, _mode == RegisterMode.create ? 'At least 8 characters' : '••••••••', obscureText: true, isPassword: true),
+                    _field(_passwordController, _mode == RegisterMode.create ? 'At least 8 characters' : '••••••••', obscureText: _obscurePassword, isPassword: true),
                     if (_errorMessage != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent))),
                     const SizedBox(height: 18),
                     ElevatedButton(onPressed: _isSubmitting ? null : _submit, child: Text(_mode == RegisterMode.create ? 'Create account' : 'Sign in')),
@@ -189,6 +190,14 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 if (isPassword && val.length < 8) return 'Min 8 characters';
                 return null;
               },
-        decoration: InputDecoration(hintText: h),
+        decoration: InputDecoration(
+          hintText: h,
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(obscureText ? Icons.visibility_outlined : Icons.visibility_off_outlined),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                )
+              : null,
+        ),
       );
 }

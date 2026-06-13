@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, create_engine
+from sqlmodel import Session, SQLModel, create_engine, select
 
 from app.db import session as session_module
 from app.db import engine as engine_module
 from app.main import create_app
-from app.models import DictionaryEntry, LlmCache
+from app.models import DictionaryEntry, GameCache, LlmCache
 
 
 @pytest.fixture()
@@ -87,6 +87,60 @@ def _highlight(client: TestClient, user_id: str, book_id: str) -> dict:
     )
     assert response.status_code == 201
     return response.json()
+
+
+def _seed_game_cache(word: str = "serene") -> GameCache:
+    return GameCache(
+        word=word,
+        word_normalized=word.lower(),
+        context_clash_json=json.dumps(
+            {
+                "correct_sentence": "The lake looked serene at dawn.",
+                "clash_sentence": "The serene alarm screamed through the room.",
+                "explanation": "A serene scene is calm, while a screaming alarm is not calm.",
+            }
+        ),
+        odd_one_out_json=json.dumps(
+            {
+                "synonyms": ["calm", "peaceful", "tranquil"],
+                "misfit_word": "noisy",
+                "misfit_definition": "making a lot of sound",
+                "justification": "Noisy is unlike serene because serene describes calm and quiet.",
+            }
+        ),
+        true_or_bluff_json=json.dumps(
+            {
+                "true_statement": "A serene garden feels calm and quiet.",
+                "bluff_statement": "A serene hallway is full of shouting and chaos.",
+                "true_explanation": "The true statement uses serene for a calm, quiet place.",
+                "bluff_explanation": "The bluff statement misuses serene because shouting and chaos are not calm.",
+            }
+        ),
+        cloze_json=json.dumps(
+            {
+                "sentence": "The garden felt serene after the rain.",
+                "word_meaning": "calm and peaceful",
+            }
+        ),
+        generation_status="Completed",
+    )
+
+
+def _upsert_game_cache(session: Session, word: str = "serene") -> None:
+    seeded = _seed_game_cache(word)
+    existing = session.exec(
+        select(GameCache).where(GameCache.word_normalized == seeded.word_normalized)
+    ).first()
+    if existing:
+        existing.context_clash_json = seeded.context_clash_json
+        existing.odd_one_out_json = seeded.odd_one_out_json
+        existing.true_or_bluff_json = seeded.true_or_bluff_json
+        existing.cloze_json = seeded.cloze_json
+        existing.generation_status = "Completed"
+        session.add(existing)
+    else:
+        session.add(seeded)
+    session.commit()
 
 
 def test_profile_crud_regression(client: TestClient) -> None:
@@ -188,6 +242,8 @@ def test_highlight_vault_and_games_flow(client: TestClient) -> None:
     user_id = _register(client)
     book = _book(client, user_id)
     highlight = _highlight(client, user_id, book["id"])
+    with Session(engine_module.get_engine()) as session:
+        _upsert_game_cache(session, "serene")
     assert highlight["srs"]["mastery_level"] == 0
 
     vault = client.get(f"/v1/vault/search?user_id={user_id}&q=moonlight")

@@ -75,7 +75,12 @@ class DictionaryApi {
     if (trimmed.isEmpty) {
       return null;
     }
-    final String safeWord = Uri.encodeComponent(trimmed);
+    final String normal = trimmed.replaceAll('\u2019', "'").replaceAll('\u2018', "'");
+    final String clean = _stripPossessive(normal);
+    if (clean.isEmpty) {
+      return null;
+    }
+    final String safeWord = Uri.encodeComponent(clean);
     final Uri url = Uri.parse('$_defaultBaseUrl/v1/dictionary/$safeWord');
     final http.Response response = await _client.get(url);
     if (response.statusCode == 404) {
@@ -102,6 +107,17 @@ class DictionaryApi {
     final Map<String, dynamic> json =
         jsonDecode(response.body) as Map<String, dynamic>;
     return DictionaryEntryModel.fromJson(json);
+  }
+
+  /// Removes trailing possessive `'s` or `s'` so the root word is looked up.
+  static String _stripPossessive(String word) {
+    if (word.endsWith("'s")) {
+      return word.substring(0, word.length - 2);
+    }
+    if (word.endsWith("'") && word.length > 1) {
+      return word.substring(0, word.length - 1);
+    }
+    return word;
   }
 
   Future<DictionaryEntryModel> upsertEntry(String word, DictionaryEntryUpsert body) async {
