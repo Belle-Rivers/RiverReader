@@ -16,10 +16,21 @@ def _read_highlight(session: Session, highlight: Highlight) -> HighlightRead:
 def create_highlight(session: Session, data: HighlightCreate) -> HighlightRead | None:
     if book_service.get_active_book_model(session, data.book_id, data.user_id) is None:
         return None
+    word = data.target_word.strip()
+    existing = session.exec(
+        select(Highlight).where(
+            Highlight.user_id == data.user_id,
+            Highlight.book_id == data.book_id,
+            Highlight.target_word == word,
+            Highlight.is_deleted == False,  # noqa: E712
+        )
+    ).first()
+    if existing is not None:
+        return _read_highlight(session, existing)
     highlight = Highlight(
         user_id=data.user_id,
         book_id=data.book_id,
-        target_word=data.target_word.strip(),
+        target_word=word,
         context_before=data.context_before,
         context_sentence=data.context_sentence,
         context_after=data.context_after,
@@ -31,7 +42,7 @@ def create_highlight(session: Session, data: HighlightCreate) -> HighlightRead |
     session.commit()
     session.refresh(highlight)
     srs_service.create_initial_srs_item(session, highlight.id)
-    ensure_game_cache_pending(session, data.target_word.strip())
+    ensure_game_cache_pending(session, word)
     return _read_highlight(session, highlight)
 
 

@@ -175,21 +175,22 @@ class _VaultPageState extends ConsumerState<VaultPage> {
       orElse: () => 'All books',
     );
     final label = selectedBookId == null ? 'All books' : selectedBookName;
-    return PopupMenuButton<String?>(
+    return PopupMenuButton<String>(
       onSelected: (value) {
-        ref.read(vaultSelectedBookIdProvider.notifier).state = value;
+        ref.read(vaultSelectedBookIdProvider.notifier).state =
+            value.isEmpty ? null : value;
       },
       itemBuilder: (context) {
-        final items = <PopupMenuEntry<String?>>[
-          const PopupMenuItem<String?>(
-            value: null,
+        final items = <PopupMenuEntry<String>>[
+          const PopupMenuItem<String>(
+            value: '',
             child: Text('All books'),
           ),
         ];
         booksAsync.whenData((books) {
           for (final book in books) {
             items.add(
-              PopupMenuItem<String?>(
+              PopupMenuItem<String>(
                 value: book.id,
                 child: Text(book.title),
               ),

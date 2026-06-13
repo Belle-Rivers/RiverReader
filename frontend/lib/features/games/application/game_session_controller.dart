@@ -491,7 +491,12 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     );
     if (matched.length >= state.deck.length) {
       _cancelTimer();
-      Future<void>.delayed(const Duration(milliseconds: 400), _load);
+      state = GameSessionVm(
+        status: GameLoadStatus.complete,
+        xp: state.xp,
+        comboStreak: state.comboStreak,
+      );
+      return;
     }
   }
 
@@ -584,8 +589,8 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     _startGenericTimer();
   }
 
-  Future<void> retryLoad() async {
-    await ref.read(gameDecksProvider.notifier).refreshDecks();
+  Future<void> retryLoad({bool replayRefresh = false}) async {
+    await ref.read(gameDecksProvider.notifier).refreshDecks(replayRefresh: replayRefresh);
     await _load();
   }
 }

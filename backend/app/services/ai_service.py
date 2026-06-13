@@ -1,7 +1,10 @@
 import hashlib
 import json
 import logging
+import random
+import re
 from datetime import datetime, timezone
+from uuid import UUID
 
 import httpx
 from sqlmodel import Session, select
@@ -20,12 +23,14 @@ _SYSTEM_PROMPT = """You are an expert game designer specializing in lexical acqu
 Analyze the target word: "{word}".
 Context from the book: "{context}"
 
-Generate game content matching the exact JSON structure defined below.
+Generate ALL game content in a single JSON response matching the exact structure below.
 
 Constraints:
 - Sentences must match the readability profile of a B1/B2 level English reader.
 - Avoid academic, archaic, or esoteric terminology in definitions.
 - Do NOT copy the context sentence from the book for any field.
+
+"word_meaning": a concise B1/B2 definition of "{word}" (max 15 words). Used when no dictionary entry exists.
 
 For "context_clash":
 - "correct_sentence": a natural sentence that uses "{word}" correctly and makes logical sense.
@@ -35,19 +40,26 @@ For "context_clash":
 For "odd_one_out":
 - Provide 3 genuine synonyms of "{word}" and exactly 1 misfit word with no semantic overlap.
 - Include a brief B1/B2 definition (max 12 words) for the misfit in "misfit_definition".
+- "justification": explain why the misfit is NOT related to "{word}" and why the 3 synonyms ARE related. Compare meanings directly.
 
 For "true_or_bluff":
-- Write a fast-paced statement that uses "{word}" naturally in context — NOT a dictionary definition.
-- Good BLUFF example: "If an event is sporadic, it happens every single day." (is_true: false)
-- Good TRUE example: "A sporadic problem appears now and then, not on a fixed schedule." (is_true: true)
+- Provide BOTH a true statement and a bluff statement that use the exact word form "{word}" naturally in context — NOT dictionary definitions.
+- Good bluff: "If an event is sporadic, it happens every single day."
+- Good true: "A sporadic problem appears now and then, not on a fixed schedule."
 - NEVER write "'{word}' means ..." or similar definition-style statements.
-- Roughly half the statements should be true and half bluff; vary the sentence pattern.
+- "true_explanation": explain why the true statement uses "{word}" accurately.
+- "bluff_explanation": explain why the bluff statement misuses "{word}".
 
 For "cloze":
-- "sentence": a fresh standalone sentence that uses "{word}" correctly in a new context (different from context_clash sentences).
+- "sentence": a fresh standalone sentence that uses the exact word form "{word}" correctly and grammatically in a new context (different from context_clash sentences).
+- The sentence must already contain "{word}" exactly once as a complete word. Do not change tense, plurality, or form.
+- If "{word}" is an inflected form, write a sentence where that exact form is grammatically required.
+- Bad for "{word}" = "buzzed": "The crowd began to buzzed with excitement."
+- Good for "{word}" = "buzzed": "The crowd buzzed with excitement after the winner was announced."
 
 Your output must strictly be raw JSON matching this schema:
 {{
+  "word_meaning": "string",
   "context_clash": {{
     "correct_sentence": "string",
     "clash_sentence": "string",
@@ -56,11 +68,14 @@ Your output must strictly be raw JSON matching this schema:
   "odd_one_out": {{
     "synonyms": ["string", "string", "string"],
     "misfit_word": "string",
-    "misfit_definition": "string"
+    "misfit_definition": "string",
+    "justification": "string"
   }},
   "true_or_bluff": {{
-    "statement": "string",
-    "is_true": true
+    "true_statement": "string",
+    "bluff_statement": "string",
+    "true_explanation": "string",
+    "bluff_explanation": "string"
   }},
   "cloze": {{
     "sentence": "string"
@@ -82,6 +97,34 @@ def _is_definition_style_statement(statement: str, word: str) -> bool:
     if lower.startswith(f"{normalized} means "):
         return True
     return False
+
+
+def _text_contains_exact_word(text: str, word: str) -> bool:
+    """Return True when text contains the target as a complete, exact word form."""
+    target = word.strip()
+    if not target:
+        return False
+    pattern = rf"(?<![A-Za-z]){re.escape(target)}(?![A-Za-z])"
+    return re.search(pattern, text, flags=re.IGNORECASE) is not None
+
+
+def _cloze_payload_valid(cloze: dict, word: str) -> bool:
+    sentence = cloze.get("sentence", "").strip()
+    if not sentence or not _text_contains_exact_word(sentence, word):
+        return False
+
+    target = word.strip()
+    if not target:
+        return False
+
+    # Catch the most common LLM failure for inflected vault words:
+    # "to buzzed", "to hesitated", etc.
+    if target.lower().endswith("ed"):
+        bad_infinitive = rf"\bto\s+{re.escape(target)}\b"
+        if re.search(bad_infinitive, sentence, flags=re.IGNORECASE):
+            return False
+
+    return True
 
 
 def _coerce_to_dict(value: object) -> dict | None:
@@ -111,14 +154,199 @@ def _cache_needs_regeneration(cache: GameCache) -> bool:
     for key in required:
         if _coerce_to_dict(parsed[key]) is None:
             return True
+    if not parsed.get("word_meaning", "").strip():
+        return True
+    oo = _coerce_to_dict(parsed.get("odd_one_out")) or {}
+    if not oo.get("justification", "").strip():
+        return True
     tb = _coerce_to_dict(parsed.get("true_or_bluff")) or {}
-    statement = tb.get("statement", "")
-    if not statement or _is_definition_style_statement(statement, cache.word):
+    if not _true_or_bluff_payload_valid(tb, cache.word):
         return True
     cloze = _coerce_to_dict(parsed.get("cloze")) or {}
-    if not cloze.get("sentence", ""):
+    if not _cloze_payload_valid(cloze, cache.word):
         return True
     return False
+
+
+def _true_or_bluff_payload_valid(tb: dict, word: str) -> bool:
+    """Accept new dual-statement format or legacy single-statement format."""
+    true_stmt = tb.get("true_statement", "").strip()
+    bluff_stmt = tb.get("bluff_statement", "").strip()
+    if true_stmt and bluff_stmt:
+        has_side_explanations = bool(
+            tb.get("true_explanation", "").strip()
+            and tb.get("bluff_explanation", "").strip()
+        )
+        return has_side_explanations and not (
+            _is_definition_style_statement(true_stmt, word)
+            or _is_definition_style_statement(bluff_stmt, word)
+            or not _text_contains_exact_word(true_stmt, word)
+            or not _text_contains_exact_word(bluff_stmt, word)
+        )
+    statement = tb.get("statement", "").strip()
+    is_true = tb.get("is_true")
+    return (
+        bool(statement)
+        and is_true is not None
+        and not _is_definition_style_statement(statement, word)
+        and _text_contains_exact_word(statement, word)
+    )
+
+
+def resolve_word_meaning(session: Session, word: str, cached: dict | None) -> str | None:
+    """Prefer dictionary definition; fall back to AI-generated concise meaning."""
+    from app.services.dictionary_service import get_entry_sync
+
+    entry = get_entry_sync(session, word)
+    if entry and entry.definition:
+        return entry.definition.strip()
+    if cached:
+        meaning = cached.get("word_meaning", "").strip()
+        if meaning:
+            return meaning
+        cloze = _coerce_to_dict(cached.get("cloze")) or {}
+        meaning = cloze.get("word_meaning", "").strip()
+        if meaning:
+            return meaning
+    return None
+
+
+def resolve_true_or_bluff(tb: dict) -> tuple[str, bool, str]:
+    """Pick a random true/bluff variant from cached content."""
+    true_stmt = tb.get("true_statement", "").strip()
+    bluff_stmt = tb.get("bluff_statement", "").strip()
+    if true_stmt and bluff_stmt:
+        is_true = random.choice([True, False])
+        if is_true:
+            statement = true_stmt
+            explanation = tb.get("true_explanation", "").strip() or tb.get("explanation", "").strip()
+        else:
+            statement = bluff_stmt
+            explanation = tb.get("bluff_explanation", "").strip() or tb.get("explanation", "").strip()
+            if explanation.lower().startswith(("the true statement", "true statement")):
+                explanation = "This is a bluff because it uses the word in a way that does not match its meaning."
+        return statement, is_true, explanation
+    explanation = tb.get("explanation", "").strip()
+    statement = tb.get("statement", "").strip()
+    is_true = bool(tb.get("is_true", True))
+    return statement, is_true, explanation
+
+
+def resolve_odd_one_out_explanation(
+    session: Session,
+    *,
+    target_word: str,
+    misfit_word: str,
+    selected_word: str | None,
+    is_correct: bool,
+    cached_oo: dict,
+    choice_definitions: dict[str, str],
+    target_definition: str | None,
+) -> str:
+    """Build odd-one-out feedback from AI justification or dictionary definitions."""
+    justification = cached_oo.get("justification", "").strip()
+    if justification:
+        return justification
+
+    misfit_def = choice_definitions.get(misfit_word) or _word_definition_from_dict(session, misfit_word)
+    target_def = target_definition or _word_definition_from_dict(session, target_word)
+
+    if is_correct:
+        if target_def and misfit_def:
+            return (
+                f'"{misfit_word}" ({misfit_def}) is not related to '
+                f'"{target_word}" ({target_def}).'
+            )
+        return f'"{misfit_word}" is not related to "{target_word}".'
+
+    if selected_word:
+        selected_def = choice_definitions.get(selected_word) or _word_definition_from_dict(
+            session, selected_word
+        )
+        if selected_def and misfit_def:
+            return (
+                f'"{selected_word}" ({selected_def}) is related to "{target_word}". '
+                f'The odd word was "{misfit_word}" ({misfit_def}).'
+            )
+        return (
+            f'"{selected_word}" is related to "{target_word}". '
+            f'The odd word was "{misfit_word}".'
+        )
+
+    if target_def and misfit_def:
+        return f'The odd word was "{misfit_word}" ({misfit_def}) — {target_word}: {target_def}'
+    return f'The odd word was "{misfit_word}".'
+
+
+def _word_definition_from_dict(session: Session, word: str) -> str | None:
+    from app.services.dictionary_service import get_entry_sync
+
+    entry = get_entry_sync(session, word)
+    return entry.definition.strip() if entry and entry.definition else None
+
+
+def queue_replay_regeneration(
+    session: Session,
+    user_id: UUID,
+    rows: list[tuple[str, str | None]],
+    *,
+    limit: int = 8,
+) -> list[tuple[str, str | None]]:
+    """Mark completed caches for regen when the vault has no new words since last generation."""
+    from app.models import Highlight
+    from sqlmodel import func, select
+
+    if not rows:
+        return []
+
+    latest_highlight_at = session.exec(
+        select(func.max(Highlight.created_at)).where(
+            Highlight.user_id == user_id,
+            Highlight.is_deleted == False,  # noqa: E712
+        )
+    ).one()
+    if latest_highlight_at is None:
+        return []
+
+    candidates: list[tuple[datetime, str, str | None]] = []
+    for word, context in rows:
+        word_normalized = word.strip().lower()
+        cached = session.exec(
+            select(GameCache).where(GameCache.word_normalized == word_normalized)
+        ).first()
+        if (
+            cached is None
+            or cached.generation_status != "Completed"
+            or latest_highlight_at > cached.updated_at
+        ):
+            continue
+        candidates.append((cached.updated_at, word, context))
+
+    if not candidates:
+        return []
+
+    candidates.sort(key=lambda item: item[0])
+    queued: list[tuple[str, str | None]] = []
+    for _, word, context in candidates[:limit]:
+        word_normalized = word.strip().lower()
+        cached = session.exec(
+            select(GameCache).where(GameCache.word_normalized == word_normalized)
+        ).first()
+        if cached is None:
+            continue
+        cached.generation_status = "Pending"
+        cached.updated_at = datetime.now(timezone.utc)
+        session.add(cached)
+        queued.append((word, context))
+
+    if queued:
+        session.commit()
+        log.info(
+            "Replay regen queued for user %s: %d words (no new highlights since cache)",
+            user_id,
+            len(queued),
+        )
+    return queued
 
 
 # ─── Public API used by highlight creation ────────────────────────────────────
@@ -196,14 +424,20 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
         _mark_failed(session, word_normalized)
         return None
 
-    required_keys = ["context_clash", "odd_one_out", "true_or_bluff", "cloze"]
+    required_keys = ["word_meaning", "context_clash", "odd_one_out", "true_or_bluff", "cloze"]
     for key in required_keys:
         if key not in parsed:
             log.error("Groq response missing key %r for %r", key, word)
             _mark_failed(session, word_normalized)
             return None
 
-    for key in required_keys:
+    if not str(parsed.get("word_meaning", "")).strip():
+        log.error("Groq response missing word_meaning for %r", word)
+        _mark_failed(session, word_normalized)
+        return None
+
+    game_keys = ["context_clash", "odd_one_out", "true_or_bluff", "cloze"]
+    for key in game_keys:
         coerced = _coerce_to_dict(parsed[key])
         if coerced is None:
             log.error("Groq response key %r for %r is %s and could not be coerced to dict", key, word, type(parsed[key]).__name__)
@@ -213,11 +447,25 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
             log.warning("Groq response key %r for %r was %s, coerced to dict", key, word, type(parsed[key]).__name__)
         parsed[key] = coerced
 
-    tb = parsed.get("true_or_bluff", {})
-    if _is_definition_style_statement(tb.get("statement", ""), word):
-        log.error("Groq returned definition-style true_or_bluff for %r", word)
+    oo = parsed.get("odd_one_out", {})
+    if not oo.get("justification", "").strip():
+        log.error("Groq response missing odd_one_out.justification for %r", word)
         _mark_failed(session, word_normalized)
         return None
+
+    tb = parsed.get("true_or_bluff", {})
+    if not _true_or_bluff_payload_valid(tb, word):
+        log.error("Groq returned invalid true_or_bluff for %r", word)
+        _mark_failed(session, word_normalized)
+        return None
+
+    cloze = parsed.get("cloze", {})
+    if not _cloze_payload_valid(cloze, word):
+        log.error("Groq returned invalid cloze sentence for %r", word)
+        _mark_failed(session, word_normalized)
+        return None
+    if cloze.get("word_meaning") is None:
+        cloze["word_meaning"] = parsed.get("word_meaning", "")
 
     _save_game_cache(session, word, word_normalized, parsed)
     log.info("✓ Groq game content cached for %r", word)
@@ -256,13 +504,22 @@ def _parse_cache(cache: GameCache) -> dict | None:
         if cache.true_or_bluff_json:
             result["true_or_bluff"] = json.loads(cache.true_or_bluff_json)
         if cache.cloze_json:
-            result["cloze"] = json.loads(cache.cloze_json)
+            cloze = json.loads(cache.cloze_json)
+            result["cloze"] = cloze
+            if cloze.get("word_meaning"):
+                result["word_meaning"] = cloze["word_meaning"]
         if not result:
             return None
         for key in list(result):
+            if key == "word_meaning":
+                continue
             coerced = _coerce_to_dict(result[key])
             if coerced is not None:
                 result[key] = coerced
+        if "word_meaning" not in result:
+            cloze = _coerce_to_dict(result.get("cloze")) or {}
+            if cloze.get("word_meaning"):
+                result["word_meaning"] = cloze["word_meaning"]
         return result
     except json.JSONDecodeError:
         return None
@@ -277,7 +534,10 @@ def _save_game_cache(session: Session, word: str, word_normalized: str, data: di
     clash_json = json.dumps(data.get("context_clash")) if data.get("context_clash") else None
     odd_json = json.dumps(data.get("odd_one_out")) if data.get("odd_one_out") else None
     bluff_json = json.dumps(data.get("true_or_bluff")) if data.get("true_or_bluff") else None
-    cloze_json = json.dumps(data.get("cloze")) if data.get("cloze") else None
+    cloze_payload = dict(data.get("cloze") or {})
+    if data.get("word_meaning") and not cloze_payload.get("word_meaning"):
+        cloze_payload["word_meaning"] = data["word_meaning"]
+    cloze_json = json.dumps(cloze_payload) if cloze_payload else None
 
     if existing is not None:
         existing.context_clash_json = clash_json

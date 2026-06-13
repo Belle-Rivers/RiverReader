@@ -21,7 +21,7 @@ class GameDecksNotifier extends AsyncNotifier<GameDecksBundle> {
     return ref.read(gameApiProvider).getAllDecks(userId: userId, limit: _defaultLimit);
   }
 
-  Future<void> refreshDecks() async {
+  Future<void> refreshDecks({bool replayRefresh = false}) async {
     final String? userId = ref.read(sessionUserIdProvider);
     if (userId == null) {
       state = const AsyncData(GameDecksBundle());
@@ -29,7 +29,11 @@ class GameDecksNotifier extends AsyncNotifier<GameDecksBundle> {
     }
     state = const AsyncLoading<GameDecksBundle>();
     state = await AsyncValue.guard(
-      () => ref.read(gameApiProvider).getAllDecks(userId: userId, limit: _defaultLimit),
+      () => ref.read(gameApiProvider).getAllDecks(
+            userId: userId,
+            limit: _defaultLimit,
+            replayRefresh: replayRefresh,
+          ),
     );
   }
 }

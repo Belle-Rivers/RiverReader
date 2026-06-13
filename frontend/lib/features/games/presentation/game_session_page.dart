@@ -118,6 +118,11 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
                   onPressed: () => context.go('/games'),
                   child: const Text('Back to games'),
                 ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: () => notifier.retryLoad(replayRefresh: true),
+                  child: const Text('Play again'),
+                ),
               ],
             ),
           ),
@@ -225,7 +230,7 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
                     style: theme.textTheme.bodySmall),
                 const SizedBox(height: 12),
                 FilledButton(
-                  onPressed: () => notifier.retryLoad(),
+                  onPressed: () => notifier.retryLoad(replayRefresh: true),
                   child: const Text('Play again'),
                 ),
               ],
@@ -866,8 +871,11 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
             : "Time's up.";
     final String? selected = vm.lastSelection;
     final String? targetDef = item.definition;
+    final String explanation = item.explanation ?? '';
     String body;
-    if (ok == true) {
+    if (explanation.isNotEmpty) {
+      body = explanation;
+    } else if (ok == true) {
       body = targetDef != null ? '${item.targetWord} — $targetDef' : item.targetWord;
     } else if (ok == false && selected != null) {
       final String? selectedDef = item.choiceDefinitions[selected];
@@ -891,6 +899,16 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
           Text(headline, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.35)),
+          if (targetDef != null && targetDef.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${item.targetWord} — $targetDef',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.35,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           FilledButton(
             onPressed: vm.outOfLives ? () => context.go('/games') : () => notifier.genericAdvance(),
@@ -1039,16 +1057,23 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
     final String statement = item.statement ?? '';
     final bool correctIsTrue = item.isTrue == true;
     final String correctLabel = correctIsTrue ? 'TRUE' : 'BLUFF';
+    final String explanation = item.explanation ?? '';
+    final String? wordMeaning = item.definition;
     String body;
-    if (ok == true) {
+    if (explanation.isNotEmpty) {
+      body = explanation;
+    } else if (ok == true) {
       body = 'Right — that statement is $correctLabel.';
+      if (wordMeaning != null) {
+        body += ' ${item.targetWord} — $wordMeaning';
+      }
     } else if (statement.isNotEmpty) {
       body = 'The statement is $correctLabel.';
-      if (item.definition != null) {
-        body += ' ${item.targetWord} — ${item.definition}';
+      if (wordMeaning != null) {
+        body += ' ${item.targetWord} — $wordMeaning';
       }
-    } else if (item.definition != null) {
-      body = '${item.targetWord} — ${item.definition}';
+    } else if (wordMeaning != null) {
+      body = '${item.targetWord} — $wordMeaning';
     } else {
       body = item.targetWord;
     }
@@ -1070,6 +1095,16 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
             const SizedBox(height: 8),
           ],
           Text(body, style: theme.textTheme.bodyMedium?.copyWith(height: 1.35)),
+          if (wordMeaning != null && wordMeaning.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              '${item.targetWord} — $wordMeaning',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                height: 1.35,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           FilledButton(
             onPressed: vm.outOfLives ? () => context.go('/games') : () => notifier.genericAdvance(),

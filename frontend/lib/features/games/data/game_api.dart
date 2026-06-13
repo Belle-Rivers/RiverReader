@@ -130,8 +130,11 @@ class GameApi {
   Future<GameDecksBundle> getAllDecks({
     required String userId,
     int limit = 8,
+    bool replayRefresh = false,
   }) async {
-    final Uri url = Uri.parse('$_baseUrl/v1/games/decks?user_id=$userId&limit=$limit');
+    final Uri url = Uri.parse(
+      '$_baseUrl/v1/games/decks?user_id=$userId&limit=$limit&replay_refresh=$replayRefresh',
+    );
     final http.Response response = await http.get(url);
     if (response.statusCode != 200) {
       throw Exception('getAllDecks failed: ${response.statusCode} ${response.body}');

@@ -14,6 +14,12 @@ game_router = APIRouter(prefix="/games", tags=["Games"])
 # In-memory guards so duplicate background triggers do not stack Groq calls.
 _backfill_running: bool = False
 _backfill_running_users: set[UUID] = set()
+_replay_refresh_users: set[UUID] = set()
+
+
+def request_replay_refresh(user_id: UUID) -> None:
+    """Mark that the next backfill for this user may regenerate stale completed caches."""
+    _replay_refresh_users.add(user_id)
 
 
 # ─── Background backfill worker ───────────────────────────────────────────────
@@ -72,7 +78,21 @@ def _backfill_worker(user_id: UUID | None = None) -> None:
 
         if not pending:
             log.info("Backfill (user=%s): all vault words already cached", user_id or "all")
-            return
+            replay = user_id is not None and user_id in _replay_refresh_users
+            if replay:
+                _replay_refresh_users.discard(user_id)
+                replay_pending = ai_service.queue_replay_regeneration(
+                    session, user_id, rows, limit=8
+                )
+                pending.extend(replay_pending)
+            if not pending:
+                return
+            if replay:
+                log.info(
+                    "Backfill (user=%s): replay regen queued %d words",
+                    user_id,
+                    len(pending),
+                )
 
         log.info("Backfill (user=%s): %d words need generation", user_id or "all", len(pending))
 
@@ -155,9 +175,12 @@ def get_all_game_decks(
     session: SessionDep,
     background_tasks: BackgroundTasks,
     limit: int = Query(default=10, ge=1, le=50),
+    replay_refresh: bool = Query(default=False),
 ) -> GameDecksRead:
     """Return all game decks in one request (shared vault scan + AI cache reads)."""
-    log.info("GET /games/decks  user=%s  limit=%d", user_id, limit)
+    log.info("GET /games/decks  user=%s  limit=%d  replay=%s", user_id, limit, replay_refresh)
+    if replay_refresh:
+        request_replay_refresh(user_id)
     background_tasks.add_task(_backfill_worker, user_id)
     decks = game_service.get_all_decks(session, user_id, limit=limit)
     log.info(
@@ -178,8 +201,11 @@ def get_game_deck(
     background_tasks: BackgroundTasks,
     type: str = Query(default="cloze", pattern="^(cloze|meaning_match|definition_reveal|context_clash|odd_one_out|true_or_bluff)$"),
     limit: int = Query(default=10, ge=1, le=50),
+    replay_refresh: bool = Query(default=False),
 ) -> list[GameDeckItemRead]:
-    log.info("GET /games/deck  user=%s  type=%s  limit=%d", user_id, type, limit)
+    log.info("GET /games/deck  user=%s  type=%s  limit=%d  replay=%s", user_id, type, limit, replay_refresh)
+    if replay_refresh:
+        request_replay_refresh(user_id)
     # Silently enqueue backfill for this user in the background so any words
     # that are still Pending/Failed (e.g. added while offline) are picked up.
     background_tasks.add_task(_backfill_worker, user_id)
