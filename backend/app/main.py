@@ -48,13 +48,15 @@ def create_app() -> FastAPI:
         version=settings.app_version,
         lifespan=lifespan,
     )
-    application.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_allowed_origins,
-        allow_credentials=False,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    cors_kwargs: dict = {
+        "allow_origins": settings.cors_allowed_origins,
+        "allow_credentials": False,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    if settings.cors_allowed_origin_regex:
+        cors_kwargs["allow_origin_regex"] = settings.cors_allowed_origin_regex
+    application.add_middleware(CORSMiddleware, **cors_kwargs)
     application.include_router(root_router)
     application.include_router(health_router)
     application.include_router(ai_router, prefix=settings.api_v1_prefix)

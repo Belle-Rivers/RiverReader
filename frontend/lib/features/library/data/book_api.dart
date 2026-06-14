@@ -133,6 +133,9 @@ class BookApi {
 
   final http.Client _client;
 
+  static String coverUrl({required String bookId, required String userId}) =>
+      '$baseUrl/v1/books/$bookId/cover?user_id=$userId';
+
   Future<List<BookApiModel>> listBooks(String userId) async {
     final Uri url = Uri.parse('$baseUrl/v1/books?user_id=$userId');
     final http.Response response = await _client.get(url);
@@ -148,7 +151,6 @@ class BookApi {
 
   Future<BookApiModel> uploadBook(
     String userId,
-    String filePath,
     String fileName,
     List<int> fileBytes,
   ) async {
@@ -171,6 +173,43 @@ class BookApi {
         response.body.isEmpty ? null : jsonDecode(response.body) as Map<String, dynamic>?;
     final Object? detail = payload?['detail'];
     throw BookApiException(detail is String ? detail : 'Upload failed');
+  }
+
+  Future<bool> bookFileExists({
+    required String userId,
+    required String bookId,
+  }) async {
+    final Uri url = Uri.parse('$baseUrl/v1/books/$bookId/file?user_id=$userId');
+    try {
+      final http.Response response = await _client.head(url);
+      return response.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> restoreBookFile({
+    required String userId,
+    required String bookId,
+    required String fileName,
+    required List<int> fileBytes,
+  }) async {
+    final Uri url = Uri.parse('$baseUrl/v1/books/$bookId/file');
+    final http.MultipartRequest request = http.MultipartRequest('PUT', url);
+    request.fields['user_id'] = userId;
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      fileBytes,
+      filename: fileName.endsWith('.epub') ? fileName : '$fileName.epub',
+    ));
+    final http.StreamedResponse streamedResponse = await _client.send(request);
+    final http.Response response = await http.Response.fromStream(streamedResponse);
+    if (response.statusCode != 204) {
+      final Map<String, dynamic>? payload =
+          response.body.isEmpty ? null : jsonDecode(response.body) as Map<String, dynamic>?;
+      final Object? detail = payload?['detail'];
+      throw BookApiException(detail is String ? detail : 'Failed to restore book file');
+    }
   }
 
   Future<void> deleteBook(String userId, String bookId) async {

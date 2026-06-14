@@ -86,7 +86,10 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
                                 clipBehavior: Clip.antiAlias,
                                 child: book.coverRef != null
                                     ? Image.network(
-                                        'http://localhost:8000/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
+                                        BookApi.coverUrl(
+                                          bookId: book.id,
+                                          userId: ref.read(sessionUserIdProvider)!,
+                                        ),
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) => Container(
                                           color: const Color(0xFF32261E),
@@ -136,7 +139,6 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
       final file = result.files.first;
       if (file.bytes != null) {
         await ref.read(libraryShelfControllerProvider.notifier).uploadBook(
-          file.path ?? file.name,
           file.name,
           file.bytes!.toList(),
         );

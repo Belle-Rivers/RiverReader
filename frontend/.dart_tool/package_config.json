@@ -105,7 +105,7 @@
     },
     {
       "name": "flutter",
-      "rootUri": "file:///Users/rony/Developing/Flutter/packages/flutter",
+      "rootUri": "file:///Users/rony/Developing/flutter/packages/flutter",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -183,13 +183,13 @@
     },
     {
       "name": "flutter_test",
-      "rootUri": "file:///Users/rony/Developing/Flutter/packages/flutter_test",
+      "rootUri": "file:///Users/rony/Developing/flutter/packages/flutter_test",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
     {
       "name": "flutter_web_plugins",
-      "rootUri": "file:///Users/rony/Developing/Flutter/packages/flutter_web_plugins",
+      "rootUri": "file:///Users/rony/Developing/flutter/packages/flutter_web_plugins",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -234,6 +234,12 @@
       "rootUri": "file:///Users/rony/.pub-cache/hosted/pub.dev/http_parser-4.1.2",
       "packageUri": "lib/",
       "languageVersion": "3.4"
+    },
+    {
+      "name": "idb_shim",
+      "rootUri": "file:///Users/rony/.pub-cache/hosted/pub.dev/idb_shim-2.9.2",
+      "packageUri": "lib/",
+      "languageVersion": "3.10"
     },
     {
       "name": "image",
@@ -434,6 +440,12 @@
       "languageVersion": "2.17"
     },
     {
+      "name": "sembast",
+      "rootUri": "file:///Users/rony/.pub-cache/hosted/pub.dev/sembast-3.8.7",
+      "packageUri": "lib/",
+      "languageVersion": "3.11"
+    },
+    {
       "name": "shared_preferences",
       "rootUri": "file:///Users/rony/.pub-cache/hosted/pub.dev/shared_preferences-2.5.5",
       "packageUri": "lib/",
@@ -477,7 +489,7 @@
     },
     {
       "name": "sky_engine",
-      "rootUri": "file:///Users/rony/Developing/Flutter/bin/cache/pkg/sky_engine",
+      "rootUri": "file:///Users/rony/Developing/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -634,7 +646,7 @@
   ],
   "generator": "pub",
   "generatorVersion": "3.11.5",
-  "flutterRoot": "file:///Users/rony/Developing/Flutter",
+  "flutterRoot": "file:///Users/rony/Developing/flutter",
   "flutterVersion": "3.41.8",
   "pubCache": "file:///Users/rony/.pub-cache"
 }

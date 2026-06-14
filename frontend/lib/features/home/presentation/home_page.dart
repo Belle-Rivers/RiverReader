@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../library/data/book_api.dart';
 import '../../vault/data/vault_api.dart';
+import '../../auth/application/session_store.dart';
 import '../application/home_provider.dart';
 import '../data/home_api.dart';
 
@@ -28,7 +29,26 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowTour());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeShowTour();
+      _maybeShowBackupHint();
+    });
+  }
+
+  Future<void> _maybeShowBackupHint() async {
+    if (ref.read(sessionUserIdProvider) == null) return;
+    if (!await SessionStore.shouldShowBackupHint()) return;
+    if (!mounted) return;
+    await SessionStore.markBackupHintShown();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Your reading data is saved in this browser. Use Export in Settings anytime for a backup file.',
+        ),
+        duration: Duration(seconds: 5),
+      ),
+    );
   }
 
   Future<void> _maybeShowTour() async {
@@ -192,7 +212,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                           clipBehavior: Clip.antiAlias,
                           child: book.coverRef != null
                               ? Image.network(
-                                  'http://localhost:8000/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
+                                  BookApi.coverUrl(
+                                    bookId: book.id,
+                                    userId: userId,
+                                  ),
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
                                       const Center(

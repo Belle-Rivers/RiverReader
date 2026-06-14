@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import 'package:river_reader_backend/river_reader_backend.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/river_ui.dart';
 import '../../auth/application/current_user_provider.dart';
+import '../../auth/application/session_restore_service.dart';
 import '../../auth/data/registration_api.dart';
 import '../../games/application/game_decks_provider.dart';
 import '../../games/application/game_session_controller.dart';
@@ -86,9 +89,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _feedback = null;
     });
     try {
-      final savedPath = await ref.read(backupAutoExportProvider).exportNow();
+      final savedPath = await ref.read(backupAutoExportProvider).exportAndDownload();
       if (mounted && savedPath != null) {
-        setState(() => _feedback = 'Export saved to $savedPath');
+        setState(() => _feedback = 'Export saved as $savedPath.json');
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
@@ -101,10 +104,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _feedback = null;
     });
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
-      final path = result?.files.single.path;
-      if (path == null) return;
-      final contents = await FileStorageManager.readTextFile(path);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+        withData: true,
+      );
+      final PlatformFile? file = result?.files.single;
+      if (file == null) return;
+
+      final String contents;
+      if (file.bytes != null) {
+        contents = utf8.decode(file.bytes!);
+      } else if (file.path != null) {
+        contents = await FileStorageManager.readTextFile(file.path!);
+      } else {
+        return;
+      }
+
+      if (contents.trim().isEmpty) {
+        if (mounted) setState(() => _feedback = 'Import failed: backup file is empty');
+        return;
+      }
+
       final response = await ref.read(backupAutoExportProvider).importFromText(contents);
       final user = response['user'] as Map<String, dynamic>;
       final userId = user['id'] as String;
@@ -114,6 +135,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ref.invalidate(vaultItemsProvider);
       ref.invalidate(gameDecksProvider);
       ref.read(gameApiProvider).triggerBackfill(userId);
+      await ref.read(sessionRestoreServiceProvider).restoreIfNeeded();
       if (mounted) setState(() => _feedback = 'Imported backup for ${user['email']}');
     } catch (err) {
       if (mounted) setState(() => _feedback = 'Import failed: $err');

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:river_reader_backend/river_reader_backend.dart';
 
+import '../../../core/storage/browser_download.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../auth/data/registration_api.dart';
@@ -52,13 +53,12 @@ class BackupAutoExportController {
       final RegistrationApi api = _ref.read(registrationApiProvider);
       final Map<String, dynamic> payload = await api.exportUserData(userId);
       final String fileName = await _backupFileName(userId);
-      final String savedPath = await FileStorageManager.writeTextFile(
-        fileName,
-        jsonEncode(payload),
-      );
+      final String encoded = jsonEncode(payload);
+      await FileStorageManager.writeTextFile(fileName, encoded);
+      await FileStorageManager.writeTextFile('_user_$userId', encoded);
       // ignore: avoid_print
-      print('[RiverReader] auto-export saved to $savedPath');
-      return savedPath;
+      print('[RiverReader] auto-export saved to $fileName');
+      return fileName;
     } catch (err) {
       // ignore: avoid_print
       print('[RiverReader] auto-export failed: $err');
@@ -66,6 +66,21 @@ class BackupAutoExportController {
     } finally {
       _exporting = false;
     }
+  }
+
+  Future<String?> exportAndDownload() async {
+    final String? userId = _ref.read(sessionUserIdProvider);
+    if (userId == null) {
+      return null;
+    }
+    final RegistrationApi api = _ref.read(registrationApiProvider);
+    final Map<String, dynamic> payload = await api.exportUserData(userId);
+    final String fileName = await _backupFileName(userId);
+    final String encoded = jsonEncode(payload);
+    await FileStorageManager.writeTextFile(fileName, encoded);
+    await FileStorageManager.writeTextFile('_user_$userId', encoded);
+    await BrowserDownload.downloadText('$fileName.json', encoded);
+    return fileName;
   }
 
   Future<Map<String, dynamic>> importFromText(String contents) async {

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:8080",
         "http://127.0.0.1:8081",
     ]
+    # Flutter web dev server picks a random localhost port; this regex covers local dev.
+    # Set to "" in production if you only want explicit cors_allowed_origins.
+    cors_allowed_origin_regex: str = r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
 
     @field_validator("cors_allowed_origins", mode="before")
     @classmethod

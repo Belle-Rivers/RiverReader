@@ -207,6 +207,16 @@ def test_home_summary_and_cors(client: TestClient) -> None:
     assert preflight.status_code == 200
     assert preflight.headers["access-control-allow-origin"] == "http://localhost:8080"
 
+    flutter_preflight = client.options(
+        "/v1/users/register",
+        headers={
+            "Origin": "http://localhost:57926",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert flutter_preflight.status_code == 200
+    assert flutter_preflight.headers["access-control-allow-origin"] == "http://localhost:57926"
+
 
 def test_book_progress_and_soft_delete_flow(client: TestClient) -> None:
     user_id = _register(client)

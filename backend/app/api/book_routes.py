@@ -58,6 +58,28 @@ async def upload_book(
         raise HTTPException(status_code=400, detail=f"Failed to process EPUB: {e}")
 
 
+@book_router.put("/{book_id}/file", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_book_file(
+    book_id: UUID,
+    session: SessionDep,
+    file: UploadFile = File(...),
+    user_id: UUID = Form(...),
+) -> Response:
+    from app.services.epub_parser import save_upload_file
+
+    book = book_service.get_book(session, book_id, user_id)
+    if book is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="book not found")
+    if not file.filename or not file.filename.lower().endswith(".epub"):
+        raise HTTPException(status_code=400, detail="Only EPUB files are supported")
+
+    upload_dir = "data/books"
+    os.makedirs(upload_dir, exist_ok=True)
+    final_path = os.path.join(upload_dir, f"{book_id}.epub")
+    await save_upload_file(file, final_path)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @book_router.get("/{book_id}/file", response_class=FileResponse)
 def get_book_file(book_id: UUID, user_id: UUID, session: SessionDep):
     book = book_service.get_book(session, book_id, user_id)

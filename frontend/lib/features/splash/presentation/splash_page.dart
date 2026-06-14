@@ -1,10 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../auth/application/current_user_provider.dart';
+import '../../auth/application/session_restore_service.dart';
 
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
@@ -14,23 +13,37 @@ class SplashPage extends ConsumerStatefulWidget {
 }
 
 class _SplashPageState extends ConsumerState<SplashPage> {
-  Timer? _timer;
+  bool _restoring = false;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 1800), () {
-      if (mounted) {
-        final userId = ref.read(sessionUserIdProvider);
-        context.go(userId != null ? '/' : '/register');
-      }
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+  Future<void> _bootstrap() async {
+    if (_restoring) {
+      return;
+    }
+    _restoring = true;
+
+    final DateTime startedAt = DateTime.now();
+    final String? userId = ref.read(sessionUserIdProvider);
+    if (userId != null) {
+      await ref.read(sessionRestoreServiceProvider).restoreIfNeeded();
+    }
+
+    const Duration minimumSplash = Duration(milliseconds: 1800);
+    final Duration elapsed = DateTime.now().difference(startedAt);
+    if (elapsed < minimumSplash) {
+      await Future<void>.delayed(minimumSplash - elapsed);
+    }
+
+    if (!mounted) {
+      return;
+    }
+    final String? resolvedUserId = ref.read(sessionUserIdProvider);
+    context.go(resolvedUserId != null ? '/' : '/register');
   }
 
   @override
@@ -77,6 +90,14 @@ class _SplashPageState extends ConsumerState<SplashPage> {
                   color: theme.colorScheme.primary,
                 ),
               ),
+              if (ref.watch(sessionUserIdProvider) != null) ...[
+                const SizedBox(height: 24),
+                const SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ],
             ],
           ),
         ),

@@ -1,6 +1,9 @@
 
+import 'dart:typed_data';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/storage/epub_browser_store.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../home/application/home_provider.dart';
 import '../data/book_api.dart';
@@ -17,14 +20,19 @@ class LibraryShelfController extends AsyncNotifier<List<BookApiModel>> {
     return api.listBooks(userId);
   }
 
-  Future<void> uploadBook(String filePath, String fileName, List<int> fileBytes) async {
+  Future<void> uploadBook(String fileName, List<int> fileBytes) async {
     final userId = ref.read(sessionUserIdProvider);
     if (userId == null) return;
 
     final api = ref.read(bookApiProvider);
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
-      await api.uploadBook(userId, filePath, fileName, fileBytes);
+      final BookApiModel book = await api.uploadBook(userId, fileName, fileBytes);
+      await EpubBrowserStore.save(
+        book.id,
+        fileName,
+        Uint8List.fromList(fileBytes),
+      );
       ref.invalidate(homeSummaryProvider);
       return api.listBooks(userId);
     });
@@ -39,6 +47,7 @@ class LibraryShelfController extends AsyncNotifier<List<BookApiModel>> {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() async {
       await api.deleteBook(userId, bookId);
+      await EpubBrowserStore.delete(bookId);
       ref.invalidate(homeSummaryProvider);
       return api.listBooks(userId);
     });
@@ -53,4 +62,3 @@ final libraryShelfControllerProvider =
     AsyncNotifierProvider<LibraryShelfController, List<BookApiModel>>(() {
   return LibraryShelfController();
 });
-

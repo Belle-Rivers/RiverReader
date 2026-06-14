@@ -16,6 +16,7 @@
         "google_fonts",
         "http",
         "http_parser",
+        "idb_shim",
         "river_reader_backend",
         "shared_preferences"
       ],
@@ -962,6 +963,27 @@
       "version": "2.2.0",
       "dependencies": [
         "path"
+      ]
+    },
+    {
+      "name": "idb_shim",
+      "version": "2.9.2",
+      "dependencies": [
+        "collection",
+        "meta",
+        "path",
+        "sembast",
+        "synchronized",
+        "web"
+      ]
+    },
+    {
+      "name": "sembast",
+      "version": "3.8.7",
+      "dependencies": [
+        "meta",
+        "path",
+        "synchronized"
       ]
     }
   ],

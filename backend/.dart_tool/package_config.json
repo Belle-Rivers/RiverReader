@@ -75,7 +75,7 @@
     },
     {
       "name": "flutter",
-      "rootUri": "file:///Users/rony/Developing/Flutter/packages/flutter",
+      "rootUri": "file:///Users/rony/Developing/flutter/packages/flutter",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -93,7 +93,7 @@
     },
     {
       "name": "flutter_test",
-      "rootUri": "file:///Users/rony/Developing/Flutter/packages/flutter_test",
+      "rootUri": "file:///Users/rony/Developing/flutter/packages/flutter_test",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -291,7 +291,7 @@
     },
     {
       "name": "sky_engine",
-      "rootUri": "file:///Users/rony/Developing/Flutter/bin/cache/pkg/sky_engine",
+      "rootUri": "file:///Users/rony/Developing/flutter/bin/cache/pkg/sky_engine",
       "packageUri": "lib/",
       "languageVersion": "3.9"
     },
@@ -436,7 +436,7 @@
   ],
   "generator": "pub",
   "generatorVersion": "3.11.5",
-  "flutterRoot": "file:///Users/rony/Developing/Flutter",
+  "flutterRoot": "file:///Users/rony/Developing/flutter",
   "flutterVersion": "3.41.8",
   "pubCache": "file:///Users/rony/.pub-cache"
 }

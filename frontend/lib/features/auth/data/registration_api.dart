@@ -151,6 +151,10 @@ class RegistrationApiException implements Exception {
   String toString() => message;
 }
 
+class RegistrationApiNotFoundException extends RegistrationApiException {
+  const RegistrationApiNotFoundException(super.message);
+}
+
 class RegistrationApi {
   RegistrationApi({http.Client? client}) : _client = client ?? http.Client();
 
@@ -222,7 +226,31 @@ class RegistrationApi {
     if (response.statusCode == 200) {
       return RegistrationResponse.fromJson(jsonDecode(response.body));
     }
+    if (response.statusCode == 404) {
+      throw const RegistrationApiNotFoundException('User not found');
+    }
     throw const RegistrationApiException('Failed to get user profile');
+  }
+
+  Future<bool> waitForBackend({
+    Duration timeout = const Duration(seconds: 60),
+    Duration retryDelay = const Duration(seconds: 2),
+  }) async {
+    final DateTime deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        final Uri url = Uri.parse('$_defaultBaseUrl/health');
+        final http.Response response =
+            await _client.get(url).timeout(const Duration(seconds: 5));
+        if (response.statusCode == 200) {
+          return true;
+        }
+      } catch (_) {
+        // Keep retrying until the backend wakes up.
+      }
+      await Future<void>.delayed(retryDelay);
+    }
+    return false;
   }
 
   Future<RecoveryQuestionResponse> getRecoveryQuestion(String email) async {

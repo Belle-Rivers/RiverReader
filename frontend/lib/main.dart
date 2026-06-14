@@ -3,21 +3,26 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:river_reader_backend/river_reader_backend.dart';
+
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/application/current_user_provider.dart';
+import 'features/auth/application/session_store.dart';
 import 'features/games/application/game_backfill_provider.dart';
 import 'features/games/data/game_api.dart';
 import 'features/vault/data/highlight_api.dart';
 import 'features/settings/application/backup_autosave_provider.dart';
 
-void main() {
+Future<void> main() async {
   runZonedGuarded<void>(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
       FlutterError.onError = (FlutterErrorDetails details) {
         ErrorLogger.logFatal('Flutter framework error', details.exception, details.stack);
       };
-      
+
+      final String? savedUserId = await SessionStore.loadUserId();
+
       // Attempt to sync any offline highlights right away, then queue AI game generation.
       try {
         final Set<String> syncedUserIds = await HighlightApi().syncOfflineHighlights();
@@ -32,8 +37,19 @@ void main() {
       } catch (e) {
         // ignore errors on startup sync
       }
-      
-      runApp(const ProviderScope(child: RiverReaderApp()));
+
+      runApp(
+        ProviderScope(
+          overrides: savedUserId == null
+              ? const <Override>[]
+              : <Override>[
+                  sessionUserIdProvider.overrideWith(
+                    () => SessionUserIdNotifier(initialUserId: savedUserId),
+                  ),
+                ],
+          child: const RiverReaderApp(),
+        ),
+      );
     },
     (Object error, StackTrace stackTrace) {
       ErrorLogger.logFatal('Uncaught zone error', error, stackTrace);

@@ -79,8 +79,8 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       if (mounted) context.go('/');
     } on RegistrationApiException catch (e) {
       setState(() => _errorMessage = e.message);
-    } catch (_) {
-      setState(() => _errorMessage = 'Unexpected error');
+    } catch (err) {
+      setState(() => _errorMessage = 'Could not reach the server. Check that the backend is running and CORS is configured.');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
