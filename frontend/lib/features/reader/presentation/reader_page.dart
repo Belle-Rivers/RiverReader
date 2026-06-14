@@ -566,9 +566,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         } catch (e) {}
       }
       if (isWeb) {
-        try { window.parent.postMessage('$_webBridgeConsolePrefix' + bridgePayload, '*'); } catch (_) {}
+        window.parent.postMessage('$_webBridgeConsolePrefix' + bridgePayload, '*');
+      } else {
+        console.log('$_webBridgeConsolePrefix' + bridgePayload);
       }
-      console.log('$_webBridgeConsolePrefix' + bridgePayload);
     }
 
     function cleanSpaces(value) {
@@ -736,9 +737,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       let lastTapTime = 0;
       let lastTapX = 0;
       let lastTapY = 0;
+      let lastCaptureTime = 0;
       const DOUBLE_MS = 380;
       const DOUBLE_DIST = 48;
+      const CAPTURE_DEDUP_MS = 500;
       function captureWordAt(x, y) {
+        const now = Date.now();
+        if (now - lastCaptureTime < CAPTURE_DEDUP_MS) return;
+        lastCaptureTime = now;
         const range = rangeFromPoint(x, y);
         if (!range) return;
         const extracted = extractWordAtCaret(range);

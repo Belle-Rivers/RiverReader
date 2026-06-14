@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/application/current_user_provider.dart';
 import '../../home/application/home_provider.dart';
+import '../../library/controllers/library_shelf_controller.dart';
 import '../../library/data/book_api.dart';
 
 final readerControllerProvider =
@@ -50,6 +51,7 @@ class ReaderController extends FamilyAsyncNotifier<ReadingProgressModel?, String
         progress: newProgress,
       );
       ref.invalidate(homeSummaryProvider);
+      ref.invalidate(libraryShelfControllerProvider);
     } catch (e) {
       // Fire-and-forget: progress save failures are non-fatal.
     }
