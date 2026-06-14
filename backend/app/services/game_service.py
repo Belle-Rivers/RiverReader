@@ -72,6 +72,7 @@ def _recent_items(
     *,
     limit: int,
 ) -> list[tuple[SrsItem, Highlight]]:
+    from sqlmodel import func
     statement = (
         select(SrsItem, Highlight)
         .join(Highlight, SrsItem.highlight_id == Highlight.id)
@@ -79,7 +80,7 @@ def _recent_items(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
         )
-        .order_by(Highlight.created_at.desc())
+        .order_by(func.random())
         .limit(limit)
     )
     return list(session.exec(statement).all())
@@ -167,8 +168,8 @@ def _meaning_choices(
     correct_word: str,
     correct_definition: str | None,
 ) -> list[str]:
-    """Return the correct definition plus up to 3 distractor definitions from the vault."""
     from app.models import DictionaryEntry
+    from sqlmodel import func
 
     choices: list[str] = []
     if correct_definition:
@@ -181,6 +182,7 @@ def _meaning_choices(
             Highlight.is_deleted == False,  # noqa: E712
             Highlight.target_word != correct_word,
         )
+        .order_by(func.random())
         .limit(10)
     ).all()
 
@@ -202,6 +204,7 @@ def _blank_word(sentence: str, target_word: str) -> str:
 
 
 def _word_choices(session: Session, user_id: UUID, correct: str) -> list[str]:
+    from sqlmodel import func
     statement = (
         select(Highlight.target_word)
         .where(
@@ -209,7 +212,7 @@ def _word_choices(session: Session, user_id: UUID, correct: str) -> list[str]:
             Highlight.is_deleted == False,  # noqa: E712
             Highlight.target_word != correct,
         )
-        .order_by(Highlight.created_at.desc())
+        .order_by(func.random())
         .limit(3)
     )
     choices = [word for word in session.exec(statement).all()]
