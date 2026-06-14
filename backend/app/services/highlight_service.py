@@ -17,15 +17,28 @@ def create_highlight(session: Session, data: HighlightCreate) -> HighlightRead |
     if book_service.get_active_book_model(session, data.book_id, data.user_id) is None:
         return None
     word = data.target_word.strip()
+    # Check for ANY existing highlight (including soft-deleted) to prevent duplicates
     existing = session.exec(
         select(Highlight).where(
             Highlight.user_id == data.user_id,
             Highlight.book_id == data.book_id,
             Highlight.target_word == word,
-            Highlight.is_deleted == False,  # noqa: E712
         )
     ).first()
     if existing is not None:
+        if existing.is_deleted:
+            # Reactivate soft-deleted highlight
+            existing.is_deleted = False
+            existing.context_sentence = data.context_sentence
+            existing.context_before = data.context_before
+            existing.context_after = data.context_after
+            existing.chapter_index = data.chapter_index
+            existing.chapter_title = data.chapter_title
+            existing.cfi = data.cfi
+            session.add(existing)
+            session.commit()
+            session.refresh(existing)
+            ensure_game_cache_pending(session, word)
         return _read_highlight(session, existing)
     highlight = Highlight(
         user_id=data.user_id,
@@ -105,4 +118,21 @@ def soft_delete_highlight(
     highlight.is_deleted = True
     session.add(highlight)
     session.commit()
+
+    # Remove GameCache entry if no other active highlights use this word
+    word_normalized = highlight.target_word.strip().lower()
+    other_highlights = session.exec(
+        select(Highlight).where(
+            Highlight.target_word == highlight.target_word,
+            Highlight.is_deleted == False,  # noqa: E712
+        )
+    ).first()
+    if other_highlights is None:
+        cache = session.exec(
+            select(GameCache).where(GameCache.word_normalized == word_normalized)
+        ).first()
+        if cache is not None:
+            session.delete(cache)
+            session.commit()
+
     return True

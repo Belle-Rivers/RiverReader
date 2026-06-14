@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from sqlmodel import SQLModel, create_engine
 
 from app.models import (  # noqa: F401 — register metadata
@@ -15,35 +13,62 @@ from app.models import (  # noqa: F401 — register metadata
     UserBackup,
     UserProfile,
 )
+from app.settings import get_settings
+
+import logging
+log = logging.getLogger("river_reader")
 
 _ENGINE = None
-
-
-def _database_url() -> str:
-    backend_root = Path(__file__).resolve().parents[2]
-    db_path = backend_root / "data" / "river_reader.db"
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    return f"sqlite:///{db_path}"
 
 
 def get_engine():
     global _ENGINE
     if _ENGINE is None:
-        _ENGINE = create_engine(
-            _database_url(),
-            connect_args={"check_same_thread": False},
-        )
+        url = get_settings().database_url
+        # Mask password for safe logging
+        try:
+            from sqlalchemy.engine import make_url
+            parsed = make_url(url)
+            safe_url = parsed.render_as_string(hide_password=True)
+        except Exception:
+            safe_url = url.split("@")[-1] if "@" in url else url
+        log.info("Connecting to database: %s", safe_url)
+        engine_kwargs: dict = {}
+        if url.startswith("sqlite"):
+            engine_kwargs["connect_args"] = {"check_same_thread": False}
+        elif url.startswith("postgres"):
+            engine_kwargs["pool_pre_ping"] = True
+            engine_kwargs["pool_recycle"] = 300
+            engine_kwargs["pool_size"] = 10
+            engine_kwargs["max_overflow"] = 20
+        try:
+            _ENGINE = create_engine(url, **engine_kwargs)
+        except Exception as exc:
+            log.error("Failed to parse database URL: %s", exc)
+            log.error("URL starts with: %s...", url[:20])
+            raise
     return _ENGINE
 
 
 def init_db() -> None:
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
-    _ensure_user_profile_columns(engine)
-    _ensure_dictionary_columns(engine)
-    _ensure_review_event_columns(engine)
-    _ensure_game_cache_columns(engine)
+    if engine.dialect.name == "sqlite":
+        _ensure_user_profile_columns(engine)
+        _ensure_dictionary_columns(engine)
+        _ensure_review_event_columns(engine)
+        _ensure_game_cache_columns(engine)
+    elif engine.dialect.name == "postgresql":
+        _fix_postgresql_null_booleans(engine)
 
+def _fix_postgresql_null_booleans(engine) -> None:
+    # After migration from SQLite, boolean fields might be NULL instead of false
+    with engine.begin() as connection:
+        try:
+            connection.exec_driver_sql("UPDATE highlights SET is_deleted = false WHERE is_deleted IS NULL;")
+            connection.exec_driver_sql("UPDATE books SET is_deleted = false WHERE is_deleted IS NULL;")
+        except Exception as e:
+            log.warning("Failed to fix postgresql boolean nulls: %s", e)
 
 def _ensure_user_profile_columns(engine) -> None:
     columns = {

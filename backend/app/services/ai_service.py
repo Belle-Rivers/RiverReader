@@ -3,7 +3,7 @@ import json
 import logging
 import random
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import httpx
@@ -161,6 +161,13 @@ def _cache_needs_regeneration(cache: GameCache) -> bool:
     oo = _coerce_to_dict(parsed.get("odd_one_out")) or {}
     if not oo.get("justification", "").strip():
         return True
+    synonyms = oo.get("synonyms", [])
+    misfit = oo.get("misfit_word", "")
+    all_words = [w.lower().strip() for w in synonyms if w.strip()]
+    if misfit.strip():
+        all_words.append(misfit.lower().strip())
+    if len(all_words) != len(set(all_words)):
+        return True
     tb = _coerce_to_dict(parsed.get("true_or_bluff")) or {}
     if not _true_or_bluff_payload_valid(tb, cache.word):
         return True
@@ -197,9 +204,13 @@ def _true_or_bluff_payload_valid(tb: dict, word: str) -> bool:
 
 def resolve_word_meaning(session: Session, word: str, cached: dict | None) -> str | None:
     """Prefer dictionary definition; fall back to AI-generated concise meaning."""
-    from app.services.dictionary_service import get_entry_sync
-
-    entry = get_entry_sync(session, word)
+    from app.models import DictionaryEntry
+    
+    normalized = word.strip().lower()
+    entry = session.exec(
+        select(DictionaryEntry).where(DictionaryEntry.word_normalized == normalized)
+    ).first()
+    
     if entry and entry.definition:
         return entry.definition.strip()
     if cached:
@@ -281,9 +292,12 @@ def resolve_odd_one_out_explanation(
 
 
 def _word_definition_from_dict(session: Session, word: str) -> str | None:
-    from app.services.dictionary_service import get_entry_sync
-
-    entry = get_entry_sync(session, word)
+    from app.models import DictionaryEntry
+    
+    normalized = word.strip().lower()
+    entry = session.exec(
+        select(DictionaryEntry).where(DictionaryEntry.word_normalized == normalized)
+    ).first()
     return entry.definition.strip() if entry and entry.definition else None
 
 
@@ -376,6 +390,12 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
         session.add(GameCache(word=word.strip(), word_normalized=word_normalized))
         session.commit()
     elif existing.generation_status == "Failed":
+        # Respect a 5-minute cooldown after failure before retrying
+        updated = existing.updated_at.replace(tzinfo=timezone.utc) if existing.updated_at.tzinfo is None else existing.updated_at
+        cooldown = datetime.now(timezone.utc) - updated
+        if cooldown < timedelta(minutes=5):
+            log.info("Game cache for %r failed %s ago – within cooldown, skipping", word, cooldown)
+            return None
         existing.generation_status = "Pending"
         existing.updated_at = datetime.now(timezone.utc)
         session.add(existing)
@@ -452,6 +472,15 @@ def generate_game_content(session: Session, word: str, context_sentence: str | N
     oo = parsed.get("odd_one_out", {})
     if not oo.get("justification", "").strip():
         log.error("Groq response missing odd_one_out.justification for %r", word)
+        _mark_failed(session, word_normalized)
+        return None
+    synonyms = oo.get("synonyms", [])
+    misfit = oo.get("misfit_word", "")
+    all_words = [w.lower().strip() for w in synonyms if w.strip()]
+    if misfit.strip():
+        all_words.append(misfit.lower().strip())
+    if len(all_words) != len(set(all_words)):
+        log.error("Groq returned duplicate words in odd_one_out for %r", word)
         _mark_failed(session, word_normalized)
         return None
 

@@ -79,6 +79,7 @@ class VaultApi {
     if (query != null && query.trim().isNotEmpty) {
       queryParameters['q'] = query.trim();
     }
+    queryParameters['t'] = DateTime.now().millisecondsSinceEpoch.toString();
     final Uri url = Uri.parse('$_defaultBaseUrl/v1/vault').replace(
       queryParameters: queryParameters,
     );

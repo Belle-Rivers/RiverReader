@@ -53,6 +53,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   Timer? _dictHintTimer;
   final Map<int, BookChapterContentModel> _chapterCache = {};
   bool _isIndexSheetOpen = false;
+  String? _lastCapturedWord;
+  DateTime? _lastCapturedAt;
   BookApiModel? _resolvedBook;
 
   @override
@@ -179,6 +181,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (highlight == null) {
       return;
     }
+    final now = DateTime.now();
+    if (_lastCapturedWord == highlight.targetWord &&
+        _lastCapturedAt != null &&
+        now.difference(_lastCapturedAt!) < const Duration(seconds: 2)) {
+      return;
+    }
+    _lastCapturedWord = highlight.targetWord;
+    _lastCapturedAt = now;
     _showCaptureFeedback();
     _captureHighlightSilently(
       ref: ref,
@@ -255,6 +265,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     unawaited(
       api.createHighlight(highlight).then((_) {
         ref.read(vaultSyncNotifierProvider).onHighlightCaptured();
+      }).catchError((e) {
+        // Fire and forget
       }),
     );
   }
@@ -569,7 +581,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         } catch (e) {}
       }
       if (isWeb) {
-        try { window.parent.postMessage('$_webBridgeConsolePrefix' + bridgePayload, '*'); } catch (_) {}
+        try {
+          window.parent.postMessage('$_webBridgeConsolePrefix' + bridgePayload, '*');
+          return;
+        } catch (_) {}
       }
       console.log('$_webBridgeConsolePrefix' + bridgePayload);
     }
@@ -739,9 +754,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       let lastTapTime = 0;
       let lastTapX = 0;
       let lastTapY = 0;
+      let lastCaptureTime = 0;
       const DOUBLE_MS = 380;
       const DOUBLE_DIST = 48;
+      const CAPTURE_COOLDOWN_MS = 1000;
       function captureWordAt(x, y) {
+        const now = Date.now();
+        if (now - lastCaptureTime < CAPTURE_COOLDOWN_MS) return;
+        lastCaptureTime = now;
         const range = rangeFromPoint(x, y);
         if (!range) return;
         const extracted = extractWordAtCaret(range);
@@ -769,10 +789,6 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       root.addEventListener('pointerup', function(e) {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         handleTapAt(e.clientX, e.clientY, function() { e.preventDefault(); });
-      });
-      root.addEventListener('dblclick', function(e) {
-        e.preventDefault();
-        captureWordAt(e.clientX, e.clientY);
       });
       root.addEventListener('contextmenu', function(e) { e.preventDefault(); });
     })();

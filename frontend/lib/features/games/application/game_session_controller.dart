@@ -275,8 +275,18 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     _clozeTimeoutInProgress = true;
     _cancelTimer();
     final int nextLives = state.lives - 1;
-    try {
-      await ref.read(gameApiProvider).submitAnswer(
+    state = state.copyWith(
+      showingFeedback: true,
+      lastSelection: null,
+      lastCorrect: false,
+      lives: nextLives,
+      comboStreak: 0,
+      secondsLeftCloze: 0,
+      outOfLives: nextLives <= 0,
+    );
+
+    unawaited(
+      ref.read(gameApiProvider).submitAnswer(
             userId: userId,
             srsItemId: item.srsItemId,
             gameType: 'cloze',
@@ -285,23 +295,15 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
             comboMultiplier: 1,
             xpEarned: 0,
             responseTimeMs: _clozePerQuestionSeconds * 1000,
-          );
-      ref.invalidate(vaultItemsProvider);
-      ref.invalidate(homeSummaryProvider);
-      state = state.copyWith(
-        showingFeedback: true,
-        lastSelection: null,
-        lastCorrect: false,
-        lives: nextLives,
-        comboStreak: 0,
-        secondsLeftCloze: 0,
-        outOfLives: nextLives <= 0,
-      );
-    } catch (e) {
-      state = GameSessionVm(status: GameLoadStatus.error, errorMessage: e.toString());
-    } finally {
-      _clozeTimeoutInProgress = false;
-    }
+          ).then((_) {
+        ref.invalidate(vaultItemsProvider);
+        ref.invalidate(homeSummaryProvider);
+      }).catchError((e) {
+        // Fire and forget
+      }).whenComplete(() {
+        _clozeTimeoutInProgress = false;
+      }),
+    );
   }
 
   // ---- Match timer ----
@@ -336,8 +338,18 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     if (item == null || userId == null) return;
     _cancelTimer();
     final int nextLives = state.lives - 1;
-    try {
-      await ref.read(gameApiProvider).submitAnswer(
+    state = state.copyWith(
+      showingFeedback: true,
+      lastSelection: null,
+      lastCorrect: false,
+      lives: nextLives,
+      comboStreak: 0,
+      secondsLeftGeneric: 0,
+      outOfLives: nextLives <= 0,
+    );
+
+    unawaited(
+      ref.read(gameApiProvider).submitAnswer(
             userId: userId,
             srsItemId: item.srsItemId,
             gameType: _apiGameType,
@@ -346,21 +358,13 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
             comboMultiplier: 1,
             xpEarned: 0,
             responseTimeMs: _genericQuestionSeconds * 1000,
-          );
-      ref.invalidate(vaultItemsProvider);
-      ref.invalidate(homeSummaryProvider);
-      state = state.copyWith(
-        showingFeedback: true,
-        lastSelection: null,
-        lastCorrect: false,
-        lives: nextLives,
-        comboStreak: 0,
-        secondsLeftGeneric: 0,
-        outOfLives: nextLives <= 0,
-      );
-    } catch (e) {
-      state = GameSessionVm(status: GameLoadStatus.error, errorMessage: e.toString());
-    }
+          ).then((_) {
+        ref.invalidate(vaultItemsProvider);
+        ref.invalidate(homeSummaryProvider);
+      }).catchError((e) {
+        // Fire and forget
+      }),
+    );
   }
 
   // ---- Cloze selection ----
@@ -380,18 +384,6 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     final int nextStreak = correct ? state.comboStreak + 1 : 0;
     final int comboMult = nextStreak < 1 ? 1 : nextStreak;
     final int xpGain = correct ? _baseXp * comboMult : 0;
-    await ref.read(gameApiProvider).submitAnswer(
-          userId: userId,
-          srsItemId: item.srsItemId,
-          gameType: 'cloze',
-          selectedAnswer: option,
-          isCorrect: correct,
-          comboMultiplier: comboMult,
-          xpEarned: xpGain,
-          responseTimeMs: elapsed * 1000,
-        );
-    ref.invalidate(vaultItemsProvider);
-    ref.invalidate(homeSummaryProvider);
     final int nextLives = correct ? state.lives : state.lives - 1;
     _cancelTimer();
     state = state.copyWith(
@@ -401,10 +393,24 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
       comboStreak: nextStreak,
       xp: state.xp + xpGain,
       lives: nextLives,
+      outOfLives: (!correct && nextLives <= 0),
     );
-    if (!correct && nextLives <= 0) {
-      state = state.copyWith(outOfLives: true);
-    }
+
+    unawaited(
+      ref.read(gameApiProvider).submitAnswer(
+            userId: userId,
+            srsItemId: item.srsItemId,
+            gameType: 'cloze',
+            selectedAnswer: option,
+            isCorrect: correct,
+            comboMultiplier: comboMult,
+            xpEarned: xpGain,
+            responseTimeMs: elapsed * 1000,
+          ).then((_) {
+        ref.invalidate(vaultItemsProvider);
+        ref.invalidate(homeSummaryProvider);
+      }),
+    );
   }
 
   void clozeAdvance() {
@@ -470,18 +476,6 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     final int nextStreak = state.comboStreak + 1;
     final int comboMult = nextStreak < 1 ? 1 : nextStreak;
     final int xpGain = _baseXp * comboMult;
-    await ref.read(gameApiProvider).submitAnswer(
-          userId: userId,
-          srsItemId: row.srsItemId,
-          gameType: 'meaning_match',
-          selectedAnswer: definition,
-          isCorrect: true,
-          comboMultiplier: comboMult,
-          xpEarned: xpGain,
-          responseTimeMs: elapsedMs,
-        );
-    ref.invalidate(vaultItemsProvider);
-    ref.invalidate(homeSummaryProvider);
     final Set<String> matched = Set<String>.of(state.matchedSrsIds)..add(row.srsItemId);
     state = state.copyWith(
       matchedSrsIds: matched,
@@ -496,8 +490,23 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
         xp: state.xp,
         comboStreak: state.comboStreak,
       );
-      return;
     }
+
+    unawaited(
+      ref.read(gameApiProvider).submitAnswer(
+            userId: userId,
+            srsItemId: row.srsItemId,
+            gameType: 'meaning_match',
+            selectedAnswer: definition,
+            isCorrect: true,
+            comboMultiplier: comboMult,
+            xpEarned: xpGain,
+            responseTimeMs: elapsedMs,
+          ).then((_) {
+        ref.invalidate(vaultItemsProvider);
+        ref.invalidate(homeSummaryProvider);
+      }),
+    );
   }
 
   GameDeckItemRead? _rowForSrs(String srsItemId) {
@@ -536,18 +545,6 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
     final int comboMult = nextStreak < 1 ? 1 : nextStreak;
     final int xpGain = correct ? _baseXp * comboMult : 0;
 
-    await ref.read(gameApiProvider).submitAnswer(
-          userId: userId,
-          srsItemId: item.srsItemId,
-          gameType: _apiGameType,
-          selectedAnswer: selectedAnswer,
-          isCorrect: correct,
-          comboMultiplier: comboMult,
-          xpEarned: xpGain,
-          responseTimeMs: elapsed * 1000,
-        );
-    ref.invalidate(vaultItemsProvider);
-    ref.invalidate(homeSummaryProvider);
     final int nextLives = correct ? state.lives : state.lives - 1;
     _cancelTimer();
     state = state.copyWith(
@@ -558,10 +555,24 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
       xp: state.xp + xpGain,
       lives: nextLives,
       secondsLeftGeneric: 0,
+      outOfLives: (!correct && nextLives <= 0),
     );
-    if (!correct && nextLives <= 0) {
-      state = state.copyWith(outOfLives: true);
-    }
+
+    unawaited(
+      ref.read(gameApiProvider).submitAnswer(
+            userId: userId,
+            srsItemId: item.srsItemId,
+            gameType: _apiGameType,
+            selectedAnswer: selectedAnswer,
+            isCorrect: correct,
+            comboMultiplier: comboMult,
+            xpEarned: xpGain,
+            responseTimeMs: elapsed * 1000,
+          ).then((_) {
+        ref.invalidate(vaultItemsProvider);
+        ref.invalidate(homeSummaryProvider);
+      }),
+    );
   }
 
   void genericAdvance() {

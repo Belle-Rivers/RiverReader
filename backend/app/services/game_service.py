@@ -60,10 +60,59 @@ def _deck_rows(
     *,
     limit: int,
 ) -> list[tuple[SrsItem, Highlight]]:
+    rows: list[tuple[SrsItem, Highlight]] = []
+    seen_ids = set()
+
     due = srs_service.list_due_items(session, user_id, limit=limit)
-    if due:
-        return list(due)
-    return _recent_items(session, user_id, limit=limit)
+    for item in due:
+        rows.append(item)
+        seen_ids.add(item[0].id)
+
+    if len(rows) < limit:
+        recent = _recent_items(session, user_id, limit=limit)
+        for item in recent:
+            if item[0].id not in seen_ids:
+                rows.append(item)
+                seen_ids.add(item[0].id)
+                if len(rows) >= limit:
+                    break
+
+    if len(rows) < limit:
+        bare = _ensure_srs_for_bare_highlights(session, user_id, limit=limit)
+        for item in bare:
+            if item[0].id not in seen_ids:
+                rows.append(item)
+                seen_ids.add(item[0].id)
+                if len(rows) >= limit:
+                    break
+
+    return rows
+
+
+def _ensure_srs_for_bare_highlights(
+    session: Session,
+    user_id: UUID,
+    *,
+    limit: int,
+) -> list[tuple[SrsItem, Highlight]]:
+    from sqlmodel import func
+
+    highlights = session.exec(
+        select(Highlight).where(
+            Highlight.user_id == user_id,
+            Highlight.is_deleted == False,  # noqa: E712
+        ).order_by(func.random()).limit(limit)
+    ).all()
+
+    rows: list[tuple[SrsItem, Highlight]] = []
+    for hl in highlights:
+        srs = srs_service.get_srs_for_highlight(session, hl.id)
+        if srs is None:
+            srs = srs_service.create_initial_srs_item(session, hl.id)
+        rows.append((srs, hl))
+    if rows:
+        log.info("  → created %d missing SRS items for bare highlights", len(rows))
+    return rows
 
 
 def _recent_items(
@@ -203,19 +252,75 @@ def _blank_word(sentence: str, target_word: str) -> str:
     return re.sub(re.escape(target_word), "_____", sentence, count=1, flags=re.IGNORECASE)
 
 
+def _word_form_tag(word: str) -> str:
+    """Return a rough morphological form tag for a word.
+
+    Used to ensure cloze distractors match the target word's part-of-speech / form.
+    """
+    w = word.strip().lower()
+    if len(w) < 2:
+        return "other"
+    if w.endswith("ed"):
+        return "past_verb"
+    if w.endswith("ing"):
+        return "gerund"
+    if w.endswith("ly"):
+        return "adverb"
+    if w.endswith("er") and len(w) > 4:
+        return "comparative"
+    if w.endswith("est") and len(w) > 5:
+        return "superlative"
+    if w.endswith("tion") or w.endswith("sion"):
+        return "noun_tion"
+    if w.endswith("ment") or w.endswith("ness") or w.endswith("ity"):
+        return "noun_suffix"
+    if w.endswith("ful") or w.endswith("less") or w.endswith("ive") or w.endswith("ous") or w.endswith("al"):
+        return "adjective"
+    if w.endswith("ize") or w.endswith("ise") or w.endswith("ate"):
+        return "verb_form"
+    return "other"
+
+
 def _word_choices(session: Session, user_id: UUID, correct: str) -> list[str]:
+    from app.models import DictionaryEntry
     from sqlmodel import func
-    statement = (
-        select(Highlight.target_word)
-        .where(
+
+    target_tag = _word_form_tag(correct)
+
+    # First try to find vault words matching the same morphological form
+    all_words = session.exec(
+        select(Highlight.target_word).where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
             Highlight.target_word != correct,
         )
-        .order_by(func.random())
-        .limit(3)
-    )
-    choices = [word for word in session.exec(statement).all()]
+    ).all()
+
+    form_matched = [w for w in all_words if _word_form_tag(w) == target_tag]
+    # Remove duplicates
+    form_matched = list(set(form_matched))
+    random.shuffle(form_matched)
+
+    distractors = form_matched[:3]
+
+    # If we need more distractors of the same form, search the global Dictionary
+    if len(distractors) < 3:
+        all_dict_words = session.exec(
+            select(DictionaryEntry.word).where(DictionaryEntry.word != correct)
+        ).all()
+        dict_matched = [w for w in all_dict_words if _word_form_tag(w) == target_tag and w not in distractors]
+        dict_matched = list(set(dict_matched))
+        random.shuffle(dict_matched)
+        distractors.extend(dict_matched[: 3 - len(distractors)])
+
+    # If we STILL need more (very rare for common forms, but possible for "other"), fallback to vault words
+    if len(distractors) < 3:
+        fallback = [w for w in all_words if w not in distractors and w != correct]
+        fallback = list(set(fallback))
+        random.shuffle(fallback)
+        distractors.extend(fallback[: 3 - len(distractors)])
+
+    choices = distractors[:3]
     choices.append(correct)
     return sorted(dict.fromkeys(choices), key=str.lower)
 

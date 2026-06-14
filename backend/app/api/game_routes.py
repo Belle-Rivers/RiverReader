@@ -1,5 +1,6 @@
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
@@ -70,7 +71,13 @@ def _backfill_worker(user_id: UUID | None = None) -> None:
                 select(GameCache).where(GameCache.word_normalized == word_normalized)
             ).first()
             if cached is None or _cache_needs_regeneration(cached):
-                if cached is not None and cached.generation_status in ("Failed", "Completed"):
+                if cached is not None and cached.generation_status == "Failed":
+                    updated = cached.updated_at.replace(tzinfo=timezone.utc) if cached.updated_at.tzinfo is None else cached.updated_at
+                    cooldown = datetime.now(timezone.utc) - updated
+                    if cooldown < timedelta(minutes=5):
+                        log.debug("Backfill: skipping %r – failed %s ago, within cooldown", word, cooldown)
+                        continue
+                if cached is not None and cached.generation_status == "Completed":
                     cached.generation_status = "Pending"
                     session.add(cached)
                     session.commit()

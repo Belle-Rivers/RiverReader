@@ -93,12 +93,43 @@ def _save_to_local_db(session: Session, payload: DictionaryEntryCreate) -> Dicti
 
 
 def get_entry_sync(session: Session, word: str) -> DictionaryEntryRead | None:
-    """Synchronous local-DB-only lookup. Used by game_service (sync context)."""
+    """Synchronous lookup — local DB first, then dictionaryapi.dev (sync httpx)."""
     normalized = normalize_word(word)
     entry = session.exec(
         select(DictionaryEntry).where(DictionaryEntry.word_normalized == normalized)
     ).first()
-    return _entry_to_read(entry) if entry is not None else None
+    if entry is not None:
+        return _entry_to_read(entry)
+
+    # Fall back to the free dictionary API (sync)
+    url = _FREE_DICT_URL.format(word=normalized)
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            resp = client.get(url)
+    except Exception as exc:
+        log.warning("Free dictionary API unreachable for %r: %s", word, exc)
+        return None
+
+    if resp.status_code != 200:
+        return None
+
+    payload = _parse_free_dict_response(word, resp.json())
+    if payload is None:
+        return None
+
+    try:
+        cached = _save_to_local_db(session, payload)
+        return _entry_to_read(cached)
+    except Exception:
+        from uuid import uuid4 as _uuid4
+        return DictionaryEntryRead(
+            id=str(_uuid4()),
+            word=payload.word,
+            definition=payload.definition,
+            synonyms=list(payload.synonyms),
+            example_sentence=payload.example_sentence,
+            source=payload.source,
+        )
 
 
 async def get_entry(session: Session, word: str) -> DictionaryEntryRead | None:

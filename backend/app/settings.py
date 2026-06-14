@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/v1"
     ai_enabled: bool = False
     groq_api_key: str = ""
+    database_url: str = "sqlite:///./data/river_reader.db"
     cors_allowed_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:5000",
