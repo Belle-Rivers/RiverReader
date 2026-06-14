@@ -106,7 +106,7 @@ class GameDecksBundle {
 
 class GameApi {
   static const String _baseUrl = String.fromEnvironment(
-    'RIVER_READER_API_BASE_URL',
+    'RIVER_READER_API_URL',
     defaultValue: 'http://localhost:8000',
   );
 
