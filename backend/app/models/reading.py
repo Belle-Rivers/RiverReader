@@ -107,6 +107,14 @@ class DictionaryEntry(SQLModel, table=True):
     source: str | None = Field(default=None, max_length=128)
 
 
+class UserBackup(SQLModel, table=True):
+    __tablename__ = "user_backups"
+
+    user_id: UUID = Field(primary_key=True)
+    data: str = Field(default="{}")
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
 class LlmCache(SQLModel, table=True):
     __tablename__ = "llm_cache"
 

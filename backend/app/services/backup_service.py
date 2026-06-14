@@ -14,6 +14,7 @@ from app.models import (
     ReadingProgress,
     ReviewEvent,
     SrsItem,
+    UserBackup,
     UserProfile,
 )
 from app.schemas.backup import GameCacheBackupRead, UserDataBackupRead, UserProfileBackupRead
@@ -388,3 +389,25 @@ def _clear_user_data(session: Session, user_id: UUID) -> None:
         session.exec(BookChapter.__table__.delete().where(BookChapter.book_id.in_(books)))
     session.exec(Book.__table__.delete().where(Book.user_id == user_id))
     session.commit()
+
+
+def save_user_backup(session: Session, user_id: UUID) -> str | None:
+    """Export user data to JSON and persist it in the user_backups table."""
+    payload = export_user_backup(session, user_id)
+    if payload is None:
+        return None
+    data_json = json.dumps(payload.model_dump(mode="json"))
+    existing = session.get(UserBackup, user_id)
+    if existing is None:
+        session.add(UserBackup(user_id=user_id, data=data_json))
+    else:
+        existing.data = data_json
+        existing.updated_at = datetime.now(timezone.utc)
+    session.commit()
+    return data_json
+
+
+def get_user_backup(session: Session, user_id: UUID) -> str | None:
+    """Read the stored backup JSON for a user, or None if no backup exists."""
+    row = session.get(UserBackup, user_id)
+    return row.data if row is not None else None

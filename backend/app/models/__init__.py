@@ -8,6 +8,7 @@ from app.models.reading import (
     ReadingProgress,
     ReviewEvent,
     SrsItem,
+    UserBackup,
 )
 from app.models.user_profile import UserProfile
 
@@ -21,5 +22,6 @@ __all__ = [
     "ReadingProgress",
     "ReviewEvent",
     "SrsItem",
+    "UserBackup",
     "UserProfile",
 ]

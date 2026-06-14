@@ -3,7 +3,6 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/storage/file_storage_manager.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../auth/data/registration_api.dart';
@@ -50,15 +49,10 @@ class BackupAutoExportController {
     _exporting = true;
     try {
       final RegistrationApi api = _ref.read(registrationApiProvider);
-      final Map<String, dynamic> payload = await api.exportUserData(userId);
-      final String fileName = await _backupFileName(userId);
-      final String savedPath = await FileStorageManager.writeTextFile(
-        fileName,
-        jsonEncode(payload),
-      );
+      await api.triggerBackup(userId);
       // ignore: avoid_print
-      print('[RiverReader] auto-export saved to $savedPath');
-      return savedPath;
+      print('[RiverReader] auto-export saved to server');
+      return 'server';
     } catch (err) {
       // ignore: avoid_print
       print('[RiverReader] auto-export failed: $err');
@@ -77,24 +71,6 @@ class BackupAutoExportController {
     _ref.read(sessionUserIdProvider.notifier).setUserId(userId);
     _ref.invalidate(currentUserProfileProvider);
     return response;
-  }
-
-  Future<String> _backupFileName(String userId) async {
-    final profile = await _ref.read(currentUserProfileProvider.future);
-    final String? email = profile?.email.trim();
-    final String? emailBase = email != null && email.contains('@') ? email.split('@').first.trim() : null;
-    final String? displayBase = profile?.displayName?.trim();
-    final String base = _sanitize(
-      (emailBase != null && emailBase.isNotEmpty)
-          ? emailBase
-          : (displayBase != null && displayBase.isNotEmpty ? displayBase : userId),
-    );
-    return 'RiverReader_$base';
-  }
-
-  String _sanitize(String value) {
-    final String cleaned = value.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
-    return cleaned.isEmpty ? 'backup' : cleaned;
   }
 
   void dispose() {

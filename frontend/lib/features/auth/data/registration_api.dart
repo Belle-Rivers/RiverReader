@@ -293,6 +293,31 @@ class RegistrationApi {
     final Object? detail = payload?['detail'];
     throw RegistrationApiException(detail is String ? detail : 'Profile update failed');
   }
+
+  Future<void> triggerBackup(String userId) async {
+    final Uri url = Uri.parse('$_defaultBaseUrl/v1/users/$userId/backup');
+    final http.Response response = await _client.post(url);
+    if (response.statusCode != 200) {
+      final Map<String, dynamic>? body = response.body.isEmpty
+          ? null
+          : jsonDecode(response.body) as Map<String, dynamic>?;
+      final Object? detail = body?['detail'];
+      throw RegistrationApiException(detail is String ? detail : 'Backup save failed');
+    }
+  }
+
+  Future<String> downloadBackup(String userId) async {
+    final Uri url = Uri.parse('$_defaultBaseUrl/v1/users/$userId/backup');
+    final http.Response response = await _client.get(url);
+    if (response.statusCode != 200) {
+      final Map<String, dynamic>? body = response.body.isEmpty
+          ? null
+          : jsonDecode(response.body) as Map<String, dynamic>?;
+      final Object? detail = body?['detail'];
+      throw RegistrationApiException(detail is String ? detail : 'Backup download failed');
+    }
+    return response.body;
+  }
 }
 
 class LoginRequest {

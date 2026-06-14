@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi.responses import Response as FastAPIResponse
 
 from app.db import SessionDep
 from app.schemas import (
@@ -161,3 +162,30 @@ def export_user_data(user_id: UUID, session: SessionDep) -> UserDataBackupRead:
 )
 def import_user_data(payload: UserDataBackupRead, session: SessionDep) -> UserDataBackupRead:
     return backup_service.import_user_backup(session, payload)
+
+
+@user_router.post(
+    "/{user_id}/backup",
+    status_code=status.HTTP_200_OK,
+    summary="Trigger server-side backup save",
+)
+def trigger_backup(user_id: UUID, session: SessionDep) -> dict:
+    data_json = backup_service.save_user_backup(session, user_id)
+    if data_json is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    return {"status": "ok", "size_bytes": len(data_json)}
+
+
+@user_router.get(
+    "/{user_id}/backup",
+    summary="Download stored backup as JSON",
+)
+def download_backup(user_id: UUID, session: SessionDep) -> FastAPIResponse:
+    data_json = backup_service.get_user_backup(session, user_id)
+    if data_json is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no backup found")
+    return FastAPIResponse(
+        content=data_json,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=RiverReader_backup.json"},
+    )

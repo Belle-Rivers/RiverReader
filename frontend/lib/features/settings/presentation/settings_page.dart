@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/storage/file_storage_manager.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/river_ui.dart';
+import '../../auth/application/auth_providers.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../auth/data/registration_api.dart';
 import '../../games/application/game_decks_provider.dart';
@@ -15,6 +16,7 @@ import '../../home/application/home_provider.dart';
 import '../../reader/controllers/reader_preferences_provider.dart';
 import '../../vault/application/vault_provider.dart';
 import '../application/backup_autosave_provider.dart';
+import '../data/backup_downloader.dart';
 
 const List<String> _securityQuestions = <String>[
   'What is the name of the place where you feel most at home?',
@@ -88,10 +90,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       final savedPath = await ref.read(backupAutoExportProvider).exportNow();
       if (mounted && savedPath != null) {
-        setState(() => _feedback = 'Export saved to $savedPath');
+        setState(() => _feedback = 'Backup saved to server');
       }
     } finally {
       if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  Future<void> _downloadBackup() async {
+    final userId = ref.read(sessionUserIdProvider);
+    if (userId == null) return;
+    setState(() {
+      _feedback = null;
+    });
+    try {
+      final api = ref.read(registrationApiProvider);
+      final contents = await api.downloadBackup(userId);
+      await BackupDownloader.saveBackup(contents, null);
+      if (mounted) setState(() => _feedback = 'Backup downloaded');
+    } catch (err) {
+      if (mounted) setState(() => _feedback = 'Download failed: $err');
     }
   }
 
@@ -272,26 +290,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Export and import your data as a single bundle.', style: theme.textTheme.bodyLarge),
+                Text('Your data is automatically saved to the server every 30 seconds.', style: theme.textTheme.bodyLarge),
                 const SizedBox(height: 12),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
                         onPressed: _exporting ? null : _exportNow,
-                        icon: const Icon(Icons.download_outlined),
-                        label: Text(_exporting ? 'Exporting…' : 'Export now'),
+                        icon: const Icon(Icons.cloud_upload_outlined),
+                        label: Text(_exporting ? 'Saving…' : 'Save now'),
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _importing ? null : _importBackup,
-                        icon: const Icon(Icons.upload_outlined),
-                        label: Text(_importing ? 'Importing…' : 'Import backup'),
+                        onPressed: _downloadBackup,
+                        icon: const Icon(Icons.download_outlined),
+                        label: const Text('Download backup'),
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: _importing ? null : _importBackup,
+                  icon: const Icon(Icons.upload_outlined),
+                  label: Text(_importing ? 'Importing…' : 'Import backup from file'),
                 ),
               ],
             ),
