@@ -38,11 +38,14 @@ class _VaultPageState extends ConsumerState<VaultPage> {
     if (!_didReadInitialBookFilter) {
       _didReadInitialBookFilter = true;
       final String? routeBookId = GoRouterState.of(context).uri.queryParameters['bookId'];
-      if (routeBookId != null && routeBookId.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(vaultSearchQueryProvider.notifier).state = '';
+        if (routeBookId != null && routeBookId.isNotEmpty) {
           ref.read(vaultSelectedBookIdProvider.notifier).state = routeBookId;
-        });
-      }
+        } else {
+          ref.read(vaultSelectedBookIdProvider.notifier).state = null;
+        }
+      });
     }
 
     return RiverScaffold(
