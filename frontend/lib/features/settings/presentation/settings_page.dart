@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:river_reader_backend/river_reader_backend.dart';
 
+import '../../../core/storage/file_storage_manager.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/widgets/river_ui.dart';
 import '../../auth/application/current_user_provider.dart';
@@ -101,10 +101,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _feedback = null;
     });
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
-      final path = result?.files.single.path;
-      if (path == null) return;
-      final contents = await FileStorageManager.readTextFile(path);
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+        withData: true,
+      );
+      final file = result?.files.single;
+      if (file == null) return;
+      final contents = file.bytes != null
+          ? String.fromCharCodes(file.bytes!)
+          : file.path != null
+              ? await FileStorageManager.readTextFile(file.path!)
+              : null;
+      if (contents == null) return;
       final response = await ref.read(backupAutoExportProvider).importFromText(contents);
       final user = response['user'] as Map<String, dynamic>;
       final userId = user['id'] as String;

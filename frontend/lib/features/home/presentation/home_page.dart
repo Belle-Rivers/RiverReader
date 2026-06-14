@@ -192,7 +192,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                           clipBehavior: Clip.antiAlias,
                           child: book.coverRef != null
                               ? Image.network(
-                                  'http://localhost:8000/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
+                                  '${BookApi.baseUrl}/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) =>
                                       const Center(

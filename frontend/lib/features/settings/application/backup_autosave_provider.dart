@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:river_reader_backend/river_reader_backend.dart';
 
+import '../../../core/storage/file_storage_manager.dart';
 import '../../auth/application/auth_providers.dart';
 import '../../auth/application/current_user_provider.dart';
 import '../../auth/data/registration_api.dart';
@@ -33,7 +33,7 @@ class BackupAutoExportController {
     if (userId == null) {
       return;
     }
-    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       unawaited(exportNow());
     });
     unawaited(exportNow());

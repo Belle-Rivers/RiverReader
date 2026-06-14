@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -16,6 +17,7 @@ import '../../vault/application/vault_provider.dart';
 import '../controllers/reader_controller.dart';
 import '../controllers/reader_preferences_provider.dart';
 import '../data/dictionary_api.dart';
+import 'web_helper.dart';
 
 class ReaderPage extends ConsumerStatefulWidget {
   const ReaderPage({
@@ -35,6 +37,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   static const String _ghostCaptureHandlerName = 'ghostCapture';
   static const String _dictionaryHintHandlerName = 'dictionaryHint';
   static const String _dictionaryDismissHandlerName = 'dictionaryDismiss';
+  static const String _webBridgeConsolePrefix = 'RiverReaderBridge:';
+  static const String _chapterNavigationHandlerName = 'chapterNavigation';
   static const double _minReaderFontSize = 14;
   static const double _maxReaderFontSize = 28;
   InAppWebViewController? _webViewController;
@@ -48,30 +52,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   _ReaderDictHint? _dictHint;
   Timer? _dictHintTimer;
   final Map<int, BookChapterContentModel> _chapterCache = {};
+  bool _isIndexSheetOpen = false;
+  BookApiModel? _resolvedBook;
 
   @override
   void initState() {
     super.initState();
     ref.read(readerPreferencesProvider.notifier).init();
+    if (kIsWeb) {
+      initWebPostMessageListener(_handleReaderBridgeConsoleMessage);
+    }
     Future<void>.microtask(_initializeReader);
   }
 
   void _reloadChapterForFontChange() {
-    final InAppWebViewController? controller = _webViewController;
-    if (controller == null || _chapterHtml == null) return;
-    controller.loadData(
-      data: _buildReaderHtml(
-        chapterHtml: _chapterHtml!,
-        chapterTitle: _activeChapterTitle ?? 'Chapter ${_activeChapterIndex + 1}',
-        textColorHex: _readerTextColorHex(context),
-        backgroundColorHex: _readerBackgroundColorHex(context),
-        useOriginalFont: ref.read(readerPreferencesProvider).useOriginalFont,
-      ),
-      mimeType: 'text/html',
-      encoding: 'utf-8',
-      baseUrl: WebUri(BookApi.baseUrl),
-    );
-    _applyReaderFontSize();
+    unawaited(_syncChapterToWebView());
   }
 
   void _showCaptureFeedback() {
@@ -151,6 +146,82 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       _scheduleDictHintDismiss();
     }
   }
+
+  void _handleChapterNavigationPayload(Map<String, dynamic> payload) {
+    final String? targetHref = payload['href'] as String?;
+    if (targetHref == null || targetHref.isEmpty) {
+      return;
+    }
+    final List<BookChapterApiModel> chapters = _bookChapters();
+    for (final BookChapterApiModel ch in chapters) {
+      if (ch.href != null && ch.href == targetHref) {
+        unawaited(
+          _loadChapterContent(
+            chapterIndex: ch.chapterIndex,
+            persistProgress: true,
+          ),
+        );
+        break;
+      }
+    }
+  }
+
+  void _handleGhostCapturePayload(Map<String, dynamic> payload) {
+    final String? userId = ref.read(sessionUserIdProvider);
+    if (userId == null) {
+      return;
+    }
+    final HighlightCreateModel? highlight = _buildHighlightFromBridgePayload(
+      userId: userId,
+      bookId: widget.bookId,
+      payload: payload,
+    );
+    if (highlight == null) {
+      return;
+    }
+    _showCaptureFeedback();
+    _captureHighlightSilently(
+      ref: ref,
+      highlight: highlight,
+    );
+  }
+
+  void _handleReaderBridgeConsoleMessage(String? message) {
+    if (message == null || !message.startsWith(_webBridgeConsolePrefix)) {
+      return;
+    }
+    final String rawPayload = message.substring(_webBridgeConsolePrefix.length);
+    try {
+      final Object? decoded = jsonDecode(rawPayload);
+      if (decoded is! Map) {
+        return;
+      }
+      final Map<String, dynamic> bridgeMessage =
+          Map<String, dynamic>.from(decoded);
+      final Object? handlerRaw = bridgeMessage['handler'];
+      final Object? payloadRaw = bridgeMessage['payload'];
+      final Map<String, dynamic> payload = payloadRaw is Map
+          ? Map<String, dynamic>.from(payloadRaw)
+          : <String, dynamic>{};
+      switch (handlerRaw) {
+        case _ghostCaptureHandlerName:
+          _handleGhostCapturePayload(payload);
+          break;
+        case _dictionaryHintHandlerName:
+          unawaited(_handleDictionaryHintPayload(payload));
+          break;
+        case _dictionaryDismissHandlerName:
+          _dismissDictHint();
+          break;
+        case _chapterNavigationHandlerName:
+          _handleChapterNavigationPayload(payload);
+          break;
+      }
+    } catch (_) {
+      return;
+    }
+  }
+
   HighlightCreateModel? _buildHighlightFromBridgePayload({
     required String userId,
     required String bookId,
@@ -188,10 +259,36 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     );
   }
 
+  BookApiModel? _bookMetadata() {
+    if (widget.bookExtra is BookApiModel) {
+      return widget.bookExtra as BookApiModel;
+    }
+    return _resolvedBook;
+  }
+
+  Future<void> _resolveBookMetadata(String userId) async {
+    if (widget.bookExtra is BookApiModel) {
+      _resolvedBook = widget.bookExtra as BookApiModel;
+      return;
+    }
+    if (_resolvedBook != null) {
+      return;
+    }
+    try {
+      final List<BookApiModel> books = await BookApi().listBooks(userId);
+      for (final BookApiModel book in books) {
+        if (book.id == widget.bookId) {
+          _resolvedBook = book;
+          return;
+        }
+      }
+    } catch (_) {
+      // Non-fatal: chapter index falls back to a single placeholder chapter.
+    }
+  }
+
   List<BookChapterApiModel> _bookChapters() {
-    final BookApiModel? book = widget.bookExtra is BookApiModel
-        ? widget.bookExtra as BookApiModel
-        : null;
+    final BookApiModel? book = _bookMetadata();
     final List<BookChapterApiModel> chapters = List<BookChapterApiModel>.from(
       book?.chapters ?? <BookChapterApiModel>[],
     );
@@ -211,6 +308,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     if (total <= 0) return 0;
     return (((chapterIndex + 1) / total) * 100).clamp(0, 100).toDouble();
   }
+  String _buildCurrentReaderHtml(BuildContext context) {
+    return _buildReaderHtml(
+      chapterHtml: _chapterHtml ?? '',
+      chapterTitle: _activeChapterTitle ?? 'Chapter ${_activeChapterIndex + 1}',
+      textColorHex: _readerTextColorHex(context),
+      backgroundColorHex: _readerBackgroundColorHex(context),
+      useOriginalFont: ref.read(readerPreferencesProvider).useOriginalFont,
+    );
+  }
+
+  Future<void> _syncChapterToWebView() async {
+    final InAppWebViewController? controller = _webViewController;
+    if (!mounted || controller == null || _chapterHtml == null) {
+      return;
+    }
+    _dismissDictHint();
+    await controller.loadData(
+      data: _buildCurrentReaderHtml(context),
+      mimeType: 'text/html',
+      encoding: 'utf-8',
+      baseUrl: WebUri(BookApi.baseUrl),
+    );
+    await _applyReaderFontSize();
+  }
+
   Future<void> _initializeReader() async {
     final String? userId = ref.read(sessionUserIdProvider);
     if (userId == null) {
@@ -221,6 +343,8 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       return;
     }
+    await _resolveBookMetadata(userId);
+    if (!mounted) return;
     final BookApi api = BookApi();
     final ReadingProgressModel? progress = await api.getReadingProgress(
       userId: userId,
@@ -260,6 +384,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               progressPercent: _progressPercent,
             );
       }
+      await _syncChapterToWebView();
       _preloadAdjacentChapters(userId);
       return;
     }
@@ -293,6 +418,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               progressPercent: _progressPercent,
             );
       }
+      await _syncChapterToWebView();
       _preloadAdjacentChapters(userId);
     } catch (_) {
       if (!mounted) return;
@@ -376,12 +502,16 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   }) {
     final String escapedHtml = jsonEncode(chapterHtml);
     final String escapedTitle = jsonEncode(chapterTitle);
+    final String baseHref = BookApi.baseUrl.endsWith('/')
+        ? BookApi.baseUrl
+        : '${BookApi.baseUrl}/';
     return '''
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <base href="$baseHref"/>
   <style>
     ${useOriginalFont ? '' : "@import url('https://fonts.googleapis.com/css2?family=DynaPuff:wght@400..700&display=swap');"}
     :root {
@@ -394,9 +524,17 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       color: $textColorHex !important;
       font-family: ${useOriginalFont ? "Georgia, 'Times New Roman', serif" : "'DynaPuff', cursive"};
       line-height: 1.7;
+      touch-action: manipulation;
+      -webkit-text-size-adjust: 100%;
     }
     body {
       padding: 20px;
+    }
+    #chapter-root {
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
     }
     #chapter-root, #chapter-root * {
       background: transparent !important;
@@ -415,7 +553,23 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
   <script>
     const chapterHtml = $escapedHtml;
     const chapterTitle = $escapedTitle;
+    const isWeb = $kIsWeb;
+    const readerGestureState = { suppressTapUntil: 0 };
     document.getElementById('chapter-root').innerHTML = chapterHtml;
+
+    function postToFlutter(handlerName, payload) {
+      const bridgePayload = JSON.stringify({ handler: handlerName, payload: payload || {} });
+      if (!isWeb && window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
+        try {
+          window.flutter_inappwebview.callHandler(handlerName, payload);
+          return;
+        } catch (e) {}
+      }
+      if (isWeb) {
+        try { window.parent.postMessage('$_webBridgeConsolePrefix' + bridgePayload, '*'); } catch (_) {}
+      }
+      console.log('$_webBridgeConsolePrefix' + bridgePayload);
+    }
 
     function cleanSpaces(value) {
       return (value || '').replace(/\\s+/g, ' ').trim();
@@ -521,18 +675,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         chapter_index: $_activeChapterIndex,
         cfi: cfi,
       };
-      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-        window.flutter_inappwebview.callHandler('$_ghostCaptureHandlerName', payload);
-      }
+      postToFlutter('$_ghostCaptureHandlerName', payload);
     }
     function sendDictionaryHint(word, clientX, clientY) {
-      if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-        window.flutter_inappwebview.callHandler('$_dictionaryHintHandlerName', {
-          target_word: word,
-          client_x: clientX,
-          client_y: clientY,
-        });
-      }
+      postToFlutter('$_dictionaryHintHandlerName', {
+        target_word: word,
+        client_x: clientX,
+        client_y: clientY,
+      });
     }
     function hintWordAt(clientX, clientY) {
       const root = document.getElementById('chapter-root');
@@ -568,6 +718,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           timer = null;
           const st = downState;
           if (!st) return;
+          readerGestureState.suppressTapUntil = Date.now() + 600;
           sendDictionaryHint(st.word, st.x, st.y);
           downState = null;
         }, HOLD_MS);
@@ -596,35 +747,57 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
         if (!chapterPlainText) return;
         sendGhostCapture(extracted.word, chapterPlainText, extracted.glowParent, getCfiFallbackFromRange(range));
       }
-      root.addEventListener('touchend', function(e) {
-        if (e.changedTouches.length !== 1) return;
-        const t = e.changedTouches[0];
+      function handleTapAt(x, y, preventDefaultFn) {
         const now = Date.now();
-        const x = t.clientX;
-        const y = t.clientY;
+        if (now < readerGestureState.suppressTapUntil) {
+          return;
+        }
         if (now - lastTapTime < DOUBLE_MS &&
             Math.hypot(x - lastTapX, y - lastTapY) < DOUBLE_DIST) {
           lastTapTime = 0;
+          if (preventDefaultFn) preventDefaultFn();
           captureWordAt(x, y);
         } else {
           lastTapTime = now;
           lastTapX = x;
           lastTapY = y;
         }
-      }, { passive: true });
+      }
+      root.addEventListener('pointerup', function(e) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        handleTapAt(e.clientX, e.clientY, function() { e.preventDefault(); });
+      });
       root.addEventListener('dblclick', function(e) {
         e.preventDefault();
         captureWordAt(e.clientX, e.clientY);
       });
+      root.addEventListener('contextmenu', function(e) { e.preventDefault(); });
     })();
     (function attachScrollDismissHint() {
       function postDismiss() {
-        if (window.flutter_inappwebview && window.flutter_inappwebview.callHandler) {
-          window.flutter_inappwebview.callHandler('$_dictionaryDismissHandlerName', {});
-        }
+        postToFlutter('$_dictionaryDismissHandlerName', {});
       }
       window.addEventListener('scroll', postDismiss, true);
       document.addEventListener('scroll', postDismiss, true);
+    })();
+    (function attachChapterLinkInterception() {
+      if (!isWeb) return;
+      const root = document.getElementById('chapter-root');
+      if (!root) return;
+      root.addEventListener('click', function(e) {
+        const link = e.target.closest('a');
+        if (!link) return;
+        const href = link.getAttribute('href');
+        if (!href) return;
+        const resMarker = '/resources/';
+        const resIdx = href.indexOf(resMarker);
+        if (resIdx < 0) return;
+        e.preventDefault();
+        let targetHref = href.substring(resIdx + resMarker.length);
+        const queryIdx = targetHref.indexOf('?');
+        if (queryIdx >= 0) targetHref = targetHref.substring(0, queryIdx);
+        postToFlutter('$_chapterNavigationHandlerName', { href: targetHref });
+      });
     })();
   </script>
 </body>
@@ -634,28 +807,40 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   void _showReaderIndexSheet(BuildContext context) {
     final List<BookChapterApiModel> chapters = _bookChapters();
+    setState(() => _isIndexSheetOpen = true);
+    disableWebviewPointerEvents();
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       builder: (BuildContext context) {
         return SafeArea(
-          child: ListView.builder(
-            itemCount: chapters.length,
-            itemBuilder: (BuildContext context, int index) {
-              final BookChapterApiModel chapter = chapters[index];
-              final String title =
-                  chapter.title ?? 'Chapter ${chapter.chapterIndex + 1}';
-              final bool isActive = chapter.chapterIndex == _activeChapterIndex;
-              return ListTile(
-                leading: const Icon(Icons.menu_book_rounded),
-                title: Text(title),
-                trailing: isActive ? const Icon(Icons.check_circle_rounded) : null,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  unawaited(
-                    _loadChapterContent(
-                      chapterIndex: chapter.chapterIndex,
-                      persistProgress: true,
-                    ),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.6,
+            minChildSize: 0.3,
+            maxChildSize: 0.9,
+            expand: false,
+            builder: (BuildContext context, ScrollController scrollController) {
+              return ListView.builder(
+                controller: scrollController,
+                itemCount: chapters.length,
+                itemBuilder: (BuildContext context, int index) {
+                  final BookChapterApiModel chapter = chapters[index];
+                  final String title =
+                      chapter.title ?? 'Chapter ${chapter.chapterIndex + 1}';
+                  final bool isActive = chapter.chapterIndex == _activeChapterIndex;
+                  return ListTile(
+                    leading: const Icon(Icons.menu_book_rounded),
+                    title: Text(title),
+                    trailing: isActive ? const Icon(Icons.check_circle_rounded) : null,
+                    onTap: () {
+                      Navigator.of(context).pop();
+                      unawaited(
+                        _loadChapterContent(
+                          chapterIndex: chapter.chapterIndex,
+                          persistProgress: true,
+                        ),
+                      );
+                    },
                   );
                 },
               );
@@ -663,17 +848,20 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           ),
         );
       },
-    );
+    ).whenComplete(() {
+      enableWebviewPointerEvents();
+      if (mounted) {
+        setState(() => _isIndexSheetOpen = false);
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final String readerTextHex = _readerTextColorHex(context);
-    final String readerBackgroundHex = _readerBackgroundColorHex(context);
     
-    final book = widget.bookExtra is BookApiModel ? widget.bookExtra as BookApiModel : null;
+    final book = _bookMetadata();
     final title = book?.title ?? 'Unknown Book';
 
     final progressAsync = ref.watch(readerControllerProvider(widget.bookId));
@@ -760,17 +948,12 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           clipBehavior: Clip.none,
                           children: <Widget>[
                             Positioned.fill(
-                              child: InAppWebView(
-                                key: ValueKey<int>(_activeChapterIndex),
+                              child: IgnorePointer(
+                                ignoring: _isIndexSheetOpen,
+                                child: InAppWebView(
+                                key: ValueKey<String>('reader-${widget.bookId}'),
                                 initialData: InAppWebViewInitialData(
-                                  data: _buildReaderHtml(
-                                    chapterHtml: _chapterHtml ?? '',
-                                    chapterTitle: _activeChapterTitle ??
-                                        'Chapter ${_activeChapterIndex + 1}',
-                                    textColorHex: readerTextHex,
-                                    backgroundColorHex: readerBackgroundHex,
-                                    useOriginalFont: readerPrefs.useOriginalFont,
-                                  ),
+                                  data: _buildCurrentReaderHtml(context),
                                   mimeType: 'text/html',
                                   encoding: 'utf-8',
                                   baseUrl: WebUri(BookApi.baseUrl),
@@ -785,30 +968,15 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                   controller.addJavaScriptHandler(
                                     handlerName: _ghostCaptureHandlerName,
                                     callback: (List<dynamic> args) {
-                                      final String? userId =
-                                          ref.read(sessionUserIdProvider);
-                                      if (userId == null || args.isEmpty) {
+                                      if (args.isEmpty) {
                                         return;
                                       }
                                       final dynamic firstArg = args.first;
                                       if (firstArg is! Map) {
                                         return;
                                       }
-                                      final Map<String, dynamic> payload =
-                                          Map<String, dynamic>.from(firstArg);
-                                      final HighlightCreateModel? highlight =
-                                          _buildHighlightFromBridgePayload(
-                                        userId: userId,
-                                        bookId: widget.bookId,
-                                        payload: payload,
-                                      );
-                                      if (highlight == null) {
-                                        return;
-                                      }
-                                      _showCaptureFeedback();
-                                      _captureHighlightSilently(
-                                        ref: ref,
-                                        highlight: highlight,
+                                      _handleGhostCapturePayload(
+                                        Map<String, dynamic>.from(firstArg),
                                       );
                                     },
                                   );
@@ -833,7 +1001,25 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                       _dismissDictHint();
                                     },
                                   );
+                                  controller.addJavaScriptHandler(
+                                    handlerName: _chapterNavigationHandlerName,
+                                    callback: (List<dynamic> args) {
+                                      if (args.isEmpty) {
+                                        return;
+                                      }
+                                      final dynamic firstArg = args.first;
+                                      if (firstArg is! Map) {
+                                        return;
+                                      }
+                                      _handleChapterNavigationPayload(
+                                        Map<String, dynamic>.from(firstArg),
+                                      );
+                                    },
+                                  );
                                   unawaited(_applyReaderFontSize());
+                                },
+                                onConsoleMessage: (_, ConsoleMessage consoleMessage) {
+                                  _handleReaderBridgeConsoleMessage(consoleMessage.message);
                                 },
                                 onLoadStop: (_, __) {
                                   unawaited(_applyReaderFontSize());
@@ -863,8 +1049,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                                   }
                                   return NavigationActionPolicy.ALLOW;
                                 },
+                               ),
                               ),
-                            ),
+                             ),
                             if (_dictHint != null)
                               Positioned(
                                 left: 12,
