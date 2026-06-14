@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'core/error/error_logger.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/application/current_user_provider.dart';
 import 'features/games/application/game_backfill_provider.dart';
 import 'features/games/data/game_api.dart';
 import 'features/vault/data/highlight_api.dart';
@@ -17,7 +19,7 @@ void main() {
       FlutterError.onError = (FlutterErrorDetails details) {
         ErrorLogger.logFatal('Flutter framework error', details.exception, details.stack);
       };
-      
+
       // Attempt to sync any offline highlights right away, then queue AI game generation.
       try {
         final Set<String> syncedUserIds = await HighlightApi().syncOfflineHighlights();
@@ -32,8 +34,21 @@ void main() {
       } catch (e) {
         // ignore errors on startup sync
       }
-      
-      runApp(const ProviderScope(child: RiverReaderApp()));
+
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? savedUserId = prefs.getString('session_user_id');
+
+      runApp(
+        ProviderScope(
+          overrides: [
+            if (savedUserId != null)
+              sessionUserIdProvider.overrideWith(
+                () => SessionUserIdNotifier(initialUserId: savedUserId),
+              ),
+          ],
+          child: const RiverReaderApp(),
+        ),
+      );
     },
     (Object error, StackTrace stackTrace) {
       ErrorLogger.logFatal('Uncaught zone error', error, stackTrace);

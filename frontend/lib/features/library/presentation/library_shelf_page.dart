@@ -65,7 +65,10 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
                     itemBuilder: (_, i) {
                       final book = books[i];
                       return GestureDetector(
-                        onTap: () => context.push('/reader/${book.id}', extra: book),
+                        onTap: () {
+                          ref.invalidate(libraryShelfControllerProvider);
+                          context.push('/reader/${book.id}', extra: book);
+                        },
                         onLongPress: () => _showBookActions(context, book),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,6 +177,7 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
       await ref.read(libraryShelfControllerProvider.notifier).deleteBook(book.id);
     } else if (action == 'open') {
       if (context.mounted) {
+        ref.invalidate(libraryShelfControllerProvider);
         context.push('/reader/${book.id}', extra: book);
       }
     }
