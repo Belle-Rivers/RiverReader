@@ -43,9 +43,15 @@ def _count_books(session: Session, user_id: UUID) -> int:
 
 
 def _count_vault_items(session: Session, user_id: UUID) -> int:
-    statement = select(func.count()).select_from(Highlight).where(
-        Highlight.user_id == user_id,
-        Highlight.is_deleted == False,  # noqa: E712
+    statement = (
+        select(func.count())
+        .select_from(Highlight)
+        .join(Book, Highlight.book_id == Book.id)
+        .where(
+            Highlight.user_id == user_id,
+            Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
+        )
     )
     return int(session.exec(statement).one())
 
@@ -103,9 +109,11 @@ def _recent_vault_words(session: Session, user_id: UUID, limit: int = 5) -> list
     """
     rows = session.exec(
         select(Highlight)
+        .join(Book, Highlight.book_id == Book.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
         )
         .order_by(Highlight.created_at.desc())
         .limit(limit)

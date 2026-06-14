@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../auth/application/current_user_provider.dart';
 import '../../library/data/book_api.dart';
+import '../../vault/application/vault_provider.dart';
 import '../../vault/data/vault_api.dart';
 import '../application/home_provider.dart';
 import '../data/home_api.dart';
@@ -57,6 +58,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     final String? userId = ref.watch(sessionUserIdProvider);
     final AsyncValue<HomeSummaryModel?> homeAsync =
         ref.watch(homeSummaryProvider);
+    final AsyncValue<List<VaultItemRead>> vaultItemsAsync =
+        ref.watch(vaultItemsProvider);
     return RiverScaffold(
       title: 'River Reader',
       subtitle: homeAsync.maybeWhen(
@@ -111,7 +114,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                 if (home == null) {
                   return const SizedBox.shrink();
                 }
-                return _HomeStatsRow(stats: home.stats);
+                return _HomeStatsRow(
+                  stats: home.stats,
+                  vaultCount: vaultItemsAsync.whenOrNull(
+                    data: (items) => items.length,
+                  ),
+                );
               },
               loading: () => const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8),
@@ -364,9 +372,10 @@ class _HomePageState extends ConsumerState<HomePage> {
 }
 
 class _HomeStatsRow extends StatelessWidget {
-  const _HomeStatsRow({required this.stats});
+  const _HomeStatsRow({required this.stats, this.vaultCount});
 
   final HomeStatsModel stats;
+  final int? vaultCount;
 
   @override
   Widget build(BuildContext context) {
@@ -384,7 +393,7 @@ class _HomeStatsRow extends StatelessWidget {
         Expanded(
           child: _StatChip(
             label: 'Vault',
-            value: stats.vaultCount.toString(),
+            value: (vaultCount ?? stats.vaultCount).toString(),
             theme: theme,
           ),
         ),
