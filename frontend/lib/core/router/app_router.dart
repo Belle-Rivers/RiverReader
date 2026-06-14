@@ -7,6 +7,7 @@ import '../../features/games/presentation/game_session_page.dart';
 import '../../features/games/application/game_session_controller.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../../features/library/presentation/library_shelf_page.dart';
+import '../../features/auth/presentation/forgot_password_page.dart';
 import '../../features/reader/presentation/reader_page.dart';
 import '../../features/auth/presentation/register_page.dart';
 import '../../features/vault/presentation/vault_page.dart';
@@ -31,6 +32,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final String mode = state.uri.queryParameters['mode'] ?? 'create';
           return RegisterPage(initialMode: mode == 'signin' ? RegisterMode.signIn : RegisterMode.create);
         },
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (BuildContext context, GoRouterState state) => const ForgotPasswordPage(),
       ),
       GoRoute(
         path: '/shelf',

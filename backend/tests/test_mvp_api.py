@@ -1,6 +1,7 @@
 import json
 from collections.abc import Generator
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from fastapi.testclient import TestClient
@@ -186,11 +187,9 @@ def test_home_summary_and_cors(client: TestClient) -> None:
     assert home.status_code == 200
     payload = home.json()
     assert payload["user"]["id"] == user_id
-    assert payload["stats"] == {
-        "books_count": 1,
-        "vault_count": 1,
-        "due_reviews_count": 1,
-    }
+    assert payload["stats"]["books_count"] == 1
+    assert payload["stats"]["vault_count"] == 1
+    assert payload["stats"]["due_reviews_count"] == 1
     assert payload["last_opened_book"]["id"] == book["id"]
     assert payload["last_progress"]["progress_percent"] == 12.25
     recent = payload["recent_vault_words"]
@@ -264,15 +263,110 @@ def test_highlight_vault_and_games_flow(client: TestClient) -> None:
             "game_type": "cloze",
             "selected_answer": "serene",
             "is_correct": True,
+            "combo_multiplier": 1,
+            "xp_earned": 10,
+            "response_time_ms": 1500,
         },
     )
     assert answer.status_code == 200
+    assert answer.json()["xp_earned"] == 10
     assert answer.json()["grade"] == 4
     assert answer.json()["srs"]["repetitions"] == 1
 
     delete = client.delete(f"/v1/highlights/{highlight['id']}?user_id={user_id}")
     assert delete.status_code == 204
     assert client.get(f"/v1/vault?user_id={user_id}").json() == []
+
+
+def test_security_question_password_reset_and_backup_roundtrip(client: TestClient) -> None:
+    register = client.post(
+        "/v1/users/register",
+        json={
+            "email": "reader@example.com",
+            "password": "securepassword123",
+            "security_question": "What book or story made a lasting impression on you?",
+            "security_answer": "The Little Prince",
+        },
+    )
+    assert register.status_code == 201
+    user_id = register.json()["id"]
+
+    recovery = client.get(f"/v1/users/recovery-question/{quote('reader@example.com', safe='')}")
+    assert recovery.status_code == 200
+    assert recovery.json()["security_question"] == "What book or story made a lasting impression on you?"
+
+    bad_reset = client.post(
+        "/v1/users/forgot-password",
+        json={
+            "email": "reader@example.com",
+            "security_answer": "Wrong answer",
+            "new_password": "newsecurepassword123",
+        },
+    )
+    assert bad_reset.status_code == 401
+
+    reset = client.post(
+        "/v1/users/forgot-password",
+        json={
+            "email": "reader@example.com",
+            "security_answer": "The Little Prince",
+            "new_password": "newsecurepassword123",
+        },
+    )
+    assert reset.status_code == 200
+
+    login = client.post(
+        "/v1/users/login",
+        json={"email": "reader@example.com", "password": "newsecurepassword123"},
+    )
+    assert login.status_code == 200
+
+    book = _book(client, user_id)
+    highlight = _highlight(client, user_id, book["id"])
+    with Session(engine_module.get_engine()) as session:
+        _upsert_game_cache(session, "serene")
+
+    deck = client.get(f"/v1/games/deck?user_id={user_id}&type=cloze")
+    assert deck.status_code == 200
+    item = deck.json()[0]
+    answer = client.post(
+        "/v1/games/answer",
+        json={
+            "user_id": user_id,
+            "srs_item_id": item["srs_item_id"],
+            "game_type": "cloze",
+            "selected_answer": "serene",
+            "is_correct": True,
+            "combo_multiplier": 1,
+            "xp_earned": 10,
+            "response_time_ms": 1500,
+        },
+    )
+    assert answer.status_code == 200
+    assert answer.json()["xp_earned"] == 10
+
+    home = client.get(f"/v1/me/home?user_id={user_id}")
+    assert home.status_code == 200
+    assert home.json()["stats"]["xp_earned_total"] == 10
+    assert home.json()["stats"]["xp_progress_percent"] == 10.0
+
+    backup = client.get(f"/v1/users/{user_id}/export")
+    assert backup.status_code == 200
+    backup_payload = backup.json()
+    assert backup_payload["user"]["security_question"] == "What book or story made a lasting impression on you?"
+    assert backup_payload["books"]
+    assert backup_payload["highlights"]
+
+    restore = client.post("/v1/users/import", json=backup_payload)
+    assert restore.status_code == 200
+    restored = restore.json()
+    assert restored["user"]["id"] == user_id
+    assert len(restored["books"]) == len(backup_payload["books"])
+    assert len(restored["highlights"]) == len(backup_payload["highlights"])
+
+    home_after = client.get(f"/v1/me/home?user_id={user_id}")
+    assert home_after.status_code == 200
+    assert home_after.json()["stats"]["xp_earned_total"] == 10
 
 
 def test_srs_grade_endpoint_wrong_answer(client: TestClient) -> None:

@@ -3,8 +3,15 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, Response, status
 
 from app.db import SessionDep
-from app.schemas import UserProfileCreate, UserProfileRead, UserProfileUpdate, UserLogin
-from app.services import profile_service
+from app.schemas import (
+    ResetPasswordRequest,
+    UserDataBackupRead,
+    UserLogin,
+    UserProfileCreate,
+    UserProfileRead,
+    UserProfileUpdate,
+)
+from app.services import backup_service, profile_service
 
 user_router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -25,6 +32,18 @@ def register_user_profile(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
+@user_router.get(
+    "/recovery-question/{email}",
+    summary="Get the recovery question for a user email",
+)
+def get_recovery_question(email: str, session: SessionDep) -> dict:
+    result = profile_service.get_security_question(session, email)
+    if result is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    question, stored_email = result
+    return {"email": stored_email, "security_question": question}
+
+
 @user_router.post(
     "/login",
     response_model=UserProfileRead,
@@ -37,6 +56,25 @@ def login_user(
     profile = profile_service.verify_login(session, payload)
     if not profile:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    return profile
+
+
+@user_router.post(
+    "/forgot-password",
+    summary="Reset a password using the security answer",
+)
+def forgot_password(
+    payload: ResetPasswordRequest,
+    session: SessionDep,
+) -> UserProfileRead:
+    profile = profile_service.reset_password_with_security_answer(
+        session,
+        payload.email,
+        payload.security_answer,
+        payload.new_password,
+    )
+    if profile is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or security answer")
     return profile
 
 
@@ -102,3 +140,24 @@ def delete_user_profile(user_id: UUID, session: SessionDep) -> Response:
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@user_router.get(
+    "/{user_id}/export",
+    response_model=UserDataBackupRead,
+    summary="Export a user's full data package",
+)
+def export_user_data(user_id: UUID, session: SessionDep) -> UserDataBackupRead:
+    payload = backup_service.export_user_backup(session, user_id)
+    if payload is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="user not found")
+    return payload
+
+
+@user_router.post(
+    "/import",
+    response_model=UserDataBackupRead,
+    summary="Import a user's full data package",
+)
+def import_user_data(payload: UserDataBackupRead, session: SessionDep) -> UserDataBackupRead:
+    return backup_service.import_user_backup(session, payload)

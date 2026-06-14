@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import func
 from sqlmodel import Session, select
 
-from app.models import Book, Highlight, ReadingProgress, SrsItem, UserProfile
+from app.models import Book, Highlight, ReadingProgress, ReviewEvent, SrsItem, UserProfile
 from app.schemas import HomeRead, HomeStatsRead, ReadingProgressRead, VaultItemRead
 from app.services import book_service
 
@@ -25,6 +25,8 @@ def get_home(session: Session, user_id: UUID) -> HomeRead | None:
             books_count=_count_books(session, user_id),
             vault_count=_count_vault_items(session, user_id),
             due_reviews_count=_count_due_reviews(session, user_id),
+            xp_earned_total=_count_xp_earned(session, user_id),
+            xp_progress_percent=_xp_progress_percent(session, user_id),
         ),
         last_opened_book=last_opened_book,
         last_progress=ReadingProgressRead.model_validate(last_progress) if last_progress else None,
@@ -61,6 +63,25 @@ def _count_due_reviews(session: Session, user_id: UUID) -> int:
         )
     )
     return int(session.exec(statement).one())
+
+
+def _count_xp_earned(session: Session, user_id: UUID) -> int:
+    statement = (
+        select(func.coalesce(func.sum(ReviewEvent.xp_earned), 0))
+        .select_from(ReviewEvent)
+        .join(SrsItem, ReviewEvent.srs_item_id == SrsItem.id)
+        .join(Highlight, SrsItem.highlight_id == Highlight.id)
+        .where(
+            Highlight.user_id == user_id,
+            Highlight.is_deleted == False,  # noqa: E712
+        )
+    )
+    return int(session.exec(statement).one())
+
+
+def _xp_progress_percent(session: Session, user_id: UUID) -> float:
+    total_xp = _count_xp_earned(session, user_id)
+    return float(total_xp % 100)
 
 
 def _last_progress(session: Session, user_id: UUID) -> ReadingProgress | None:

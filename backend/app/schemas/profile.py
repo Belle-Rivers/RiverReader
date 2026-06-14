@@ -9,6 +9,8 @@ class UserProfileCreate(BaseModel):
 
     email: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=8, max_length=128)
+    security_question: str | None = Field(default=None, max_length=256)
+    security_answer: str | None = Field(default=None, max_length=256)
     display_name: str | None = Field(default=None, max_length=128)
     device_install_id: str | None = Field(default=None, max_length=128)
     preferred_locale: str | None = Field(default=None, max_length=16, examples=["en-US"])
@@ -24,6 +26,8 @@ class UserProfileUpdate(BaseModel):
     """Partial update for display name and/or username."""
 
     email: str | None = Field(default=None, min_length=1, max_length=64)
+    security_question: str | None = Field(default=None, max_length=256)
+    security_answer: str | None = Field(default=None, max_length=256)
     display_name: str | None = Field(default=None, max_length=128)
     device_install_id: str | None = Field(default=None, max_length=128)
     preferred_locale: str | None = Field(default=None, max_length=16)
@@ -40,6 +44,7 @@ class UserProfileRead(BaseModel):
 
     id: UUID
     email: str
+    security_question: str | None
     display_name: str | None
     device_install_id: str | None
     preferred_locale: str | None
@@ -58,3 +63,13 @@ class UserProfileRead(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=64)
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str = Field(min_length=1, max_length=64)
+    security_answer: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=128)

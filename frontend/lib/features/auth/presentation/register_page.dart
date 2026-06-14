@@ -5,14 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../../core/theme/app_theme.dart';
+import '../application/auth_providers.dart';
 import '../../games/application/game_decks_provider.dart';
 import '../../games/application/game_session_controller.dart';
 import '../application/current_user_provider.dart';
 import '../data/registration_api.dart';
 
 enum RegisterMode { create, signIn }
-
-final registrationApiProvider = Provider<RegistrationApi>((ref) => RegistrationApi());
 
 class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key, this.initialMode = RegisterMode.create});
@@ -143,7 +142,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                     if (_errorMessage != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent))),
                     const SizedBox(height: 18),
                     ElevatedButton(onPressed: _isSubmitting ? null : _submit, child: Text(_mode == RegisterMode.create ? 'Create account' : 'Sign in')),
-                    if (_mode == RegisterMode.signIn) Padding(padding: const EdgeInsets.only(top: 16), child: Text('Forgot password?', textAlign: TextAlign.center, style: TextStyle(color: text.withValues(alpha: .7)))),
+                    if (_mode == RegisterMode.signIn)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Center(
+                          child: TextButton(
+                            onPressed: () => context.go('/forgot-password'),
+                            child: Text('Forgot password?', style: TextStyle(color: text.withValues(alpha: .7))),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 28),
                     Text('By continuing you agree to the gentle scholar\'s code. Skip', textAlign: TextAlign.center, style: TextStyle(color: text.withValues(alpha: .65))),
                   ]),

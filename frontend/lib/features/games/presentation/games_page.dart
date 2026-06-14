@@ -67,7 +67,7 @@ class GamesPage extends ConsumerWidget {
                   _gameCard(
                     context,
                     Icons.rule_rounded,
-                    AppColors.mint.withValues(alpha: .25),
+                    AppColors.pink.withValues(alpha: .25),
                     'Odd One Out',
                     'Find the word that doesn\'t belong with the others.',
                     () => context.go('/games/odd-one-out'),
@@ -76,7 +76,7 @@ class GamesPage extends ConsumerWidget {
                   _gameCard(
                     context,
                     Icons.fact_check_rounded,
-                    AppColors.lavender.withValues(alpha: .25),
+                    AppColors.dustyRose.withValues(alpha: .3),
                     'True or Bluff',
                     'Decide if the definition statement is true or a bluff.',
                     () => context.go('/games/true-or-bluff'),

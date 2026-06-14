@@ -13,6 +13,7 @@ from app.schemas.profile import UserProfileCreate, UserProfileUpdate, UserLogin
 def normalize_email(email: str) -> str:
     return email.strip().lower()
 
+
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     pw_hash = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
@@ -27,6 +28,14 @@ def verify_password(password: str, hashed: str) -> bool:
     return pw_hash.hex() == hash_hex
 
 
+def hash_answer(answer: str) -> str:
+    return hash_password(answer)
+
+
+def verify_answer(answer: str, hashed: str | None) -> bool:
+    return verify_password(answer, hashed or "")
+
+
 def create_user_profile(session: Session, data: UserProfileCreate) -> UserProfile:
     """Register a new user profile. Raises ValueError if the email is taken."""
     normalized = normalize_email(data.email)
@@ -38,6 +47,8 @@ def create_user_profile(session: Session, data: UserProfileCreate) -> UserProfil
         email=data.email.strip(),
         email_normalized=normalized,
         hashed_password=hashed,
+        security_question=(data.security_question or "").strip() or None,
+        security_answer_hash=hash_answer(data.security_answer) if data.security_answer else None,
         display_name=display,
         device_install_id=data.device_install_id,
         preferred_locale=data.preferred_locale,
@@ -69,6 +80,7 @@ def get_user_profile_by_email(session: Session, email: str) -> UserProfile | Non
     statement = select(UserProfile).where(UserProfile.email_normalized == normalized)
     return session.exec(statement).first()
 
+
 def verify_login(session: Session, data: UserLogin) -> UserProfile | None:
     profile = get_user_profile_by_email(session, data.email)
     if not profile or not profile.hashed_password:
@@ -96,6 +108,14 @@ def update_user_profile(session: Session, user_id: UUID, data: UserProfileUpdate
         if new_display != profile.display_name:
             profile.display_name = new_display
             changed = True
+    if data.security_question is not None:
+        new_question = (data.security_question or "").strip() or None
+        if new_question != profile.security_question:
+            profile.security_question = new_question
+            changed = True
+    if data.security_answer is not None:
+        profile.security_answer_hash = hash_answer(data.security_answer)
+        changed = True
     if data.email is not None:
         new_email = data.email.strip()
         new_normalized = normalize_email(new_email)
@@ -128,6 +148,30 @@ def update_user_profile(session: Session, user_id: UUID, data: UserProfileUpdate
     except IntegrityError:
         session.rollback()
         raise ValueError("email is already registered") from None
+    session.refresh(profile)
+    return profile
+
+
+def get_security_question(session: Session, email: str) -> tuple[str | None, str | None] | None:
+    profile = get_user_profile_by_email(session, email)
+    if profile is None:
+        return None
+    return profile.security_question, profile.email
+
+
+def reset_password_with_security_answer(
+    session: Session,
+    email: str,
+    security_answer: str,
+    new_password: str,
+) -> UserProfile | None:
+    profile = get_user_profile_by_email(session, email)
+    if profile is None or not verify_answer(security_answer, profile.security_answer_hash):
+        return None
+    profile.hashed_password = hash_password(new_password)
+    profile.updated_at = datetime.now(timezone.utc)
+    session.add(profile)
+    session.commit()
     session.refresh(profile)
     return profile
 

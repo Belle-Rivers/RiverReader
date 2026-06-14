@@ -50,6 +50,8 @@ def _ensure_user_profile_columns(engine) -> None:
         "preferred_locale": "VARCHAR(16)",
         "timezone": "VARCHAR(64)",
         "learning_level": "VARCHAR(32)",
+        "security_question": "VARCHAR(256)",
+        "security_answer_hash": "VARCHAR(256)",
         "app_store_original_transaction_id": "VARCHAR(128)",
         "app_store_product_id": "VARCHAR(128)",
         "subscription_status": "VARCHAR(32)",

@@ -26,4 +26,22 @@ class FileStorageManager {
     await Directory(path).create(recursive: true);
     return path;
   }
+
+  static Future<String> getBackupsPath() async {
+    final dir = await getAppDirectory();
+    final path = '${dir.path}/backups';
+    await Directory(path).create(recursive: true);
+    return path;
+  }
+
+  static Future<String> writeTextFile(String fileName, String contents) async {
+    final path = '${await getBackupsPath()}/$fileName';
+    final file = File(path);
+    await file.writeAsString(contents, flush: true);
+    return path;
+  }
+
+  static Future<String> readTextFile(String path) async {
+    return File(path).readAsString();
+  }
 }

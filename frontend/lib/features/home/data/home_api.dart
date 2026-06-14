@@ -10,17 +10,23 @@ class HomeStatsModel {
     required this.booksCount,
     required this.vaultCount,
     required this.dueReviewsCount,
+    required this.xpEarnedTotal,
+    required this.xpProgressPercent,
   });
 
   final int booksCount;
   final int vaultCount;
   final int dueReviewsCount;
+  final int xpEarnedTotal;
+  final double xpProgressPercent;
 
   factory HomeStatsModel.fromJson(Map<String, dynamic> json) {
     return HomeStatsModel(
       booksCount: (json['books_count'] as num).toInt(),
       vaultCount: (json['vault_count'] as num).toInt(),
       dueReviewsCount: (json['due_reviews_count'] as num).toInt(),
+      xpEarnedTotal: (json['xp_earned_total'] as num?)?.toInt() ?? 0,
+      xpProgressPercent: (json['xp_progress_percent'] as num?)?.toDouble() ?? 0,
     );
   }
 }

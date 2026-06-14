@@ -8,6 +8,7 @@ import 'core/theme/app_theme.dart';
 import 'features/games/application/game_backfill_provider.dart';
 import 'features/games/data/game_api.dart';
 import 'features/vault/data/highlight_api.dart';
+import 'features/settings/application/backup_autosave_provider.dart';
 
 void main() {
   runZonedGuarded<void>(
@@ -48,10 +49,12 @@ class RiverReaderApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final themeMode = ref.watch(appThemeNotifierProvider);
     ref.watch(gameBackfillWorkerProvider);
+    ref.watch(backupAutoExportProvider);
 
     return MaterialApp.router(
       title: 'River Reader',
       theme: themeMode.themeData,
+      debugShowCheckedModeBanner: false,
       routerConfig: router,
     );
   }

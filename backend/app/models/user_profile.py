@@ -13,6 +13,8 @@ class UserProfile(SQLModel, table=True):
     email: str = Field(max_length=64)
     email_normalized: str = Field(max_length=64, unique=True, index=True)
     hashed_password: str | None = Field(default=None, max_length=256)
+    security_question: str | None = Field(default=None, max_length=256)
+    security_answer_hash: str | None = Field(default=None, max_length=256)
     display_name: str | None = Field(default=None, max_length=128)
     device_install_id: str | None = Field(default=None, max_length=128, index=True)
     preferred_locale: str | None = Field(default=None, max_length=16)

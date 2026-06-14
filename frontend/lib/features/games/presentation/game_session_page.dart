@@ -21,10 +21,6 @@ class GameSessionPage extends ConsumerStatefulWidget {
 class _GameSessionPageState extends ConsumerState<GameSessionPage> {
   bool get _isSentence => widget.kind == GameSessionKind.completeSentence;
   bool get _isMatch => widget.kind == GameSessionKind.matchMeanings;
-  bool get _isGeneric =>
-      widget.kind == GameSessionKind.contextClash ||
-      widget.kind == GameSessionKind.oddOneOut ||
-      widget.kind == GameSessionKind.trueOrBluff;
 
   String get _title {
     switch (widget.kind) {
@@ -148,19 +144,21 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
     GameSessionVm vm,
     GameSessionNotifier notifier,
   ) {
-    final int total = vm.deck.length;
-    final double progress;
-    if (_isMatch) {
-      progress = (vm.matchedSrsIds.isEmpty ? 0.03 : vm.matchedSrsIds.length / (total == 0 ? 1 : total))
-          .clamp(0.0, 1.0);
-    } else {
-      progress = ((vm.currentIndex + (vm.showingFeedback ? 1 : 0.5)) / (total == 0 ? 1 : total))
-          .clamp(0.0, 1.0);
-    }
+    const int totalSeconds = 20;
+    final int secondsLeft = _isSentence
+        ? vm.secondsLeftCloze
+        : _isMatch
+            ? vm.matchSecondsLeft
+            : vm.secondsLeftGeneric;
+    final double progress = (secondsLeft / totalSeconds).clamp(0.0, 1.0);
     final int comboShow = vm.comboStreak == 0 ? 0 : vm.comboStreak;
 
-    // Timer display for generic games
-    final int timerSeconds = _isGeneric ? vm.secondsLeftGeneric : 0;
+    final int timerSeconds = _isSentence
+        ? vm.secondsLeftCloze
+        : _isMatch
+            ? vm.matchSecondsLeft
+            : vm.secondsLeftGeneric;
+    final int total = vm.deck.length;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -170,12 +168,8 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _statPill(context, Icons.local_fire_department_outlined, 'x$comboShow'),
-            if (_isSentence)
-              _hearts(vm.lives)
-            else if (_isMatch)
-              _statPill(context, Icons.timer_outlined, '${vm.matchSecondsLeft}s')
-            else ...[
-              _hearts(vm.lives),
+            ...[
+              if (!_isMatch) _hearts(vm.lives),
               _statPill(context, Icons.timer_outlined, '${timerSeconds}s'),
             ],
             _statPill(context, Icons.auto_awesome_outlined, '${vm.xp}'),
@@ -195,15 +189,8 @@ class _GameSessionPageState extends ConsumerState<GameSessionPage> {
                 letterSpacing: 0.6,
               ),
             ),
-            if (_isSentence)
-              Text('${vm.secondsLeftCloze}s',
-                  style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant))
-            else if (_isGeneric)
-              Text('${timerSeconds}s',
-                  style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant))
-            else
-              Text('${(progress * 100).round()}%',
-                  style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
+            Text('${timerSeconds}s',
+                style: theme.textTheme.labelMedium?.copyWith(color: cs.onSurfaceVariant)),
           ],
         ),
         const SizedBox(height: 6),

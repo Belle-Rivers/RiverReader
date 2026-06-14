@@ -36,14 +36,14 @@ class GameSessionVm {
     this.comboStreak = 0,
     this.xp = 0,
     this.lives = 3,
-    this.secondsLeftCloze = 45,
-    this.matchSecondsLeft = 90,
+    this.secondsLeftCloze = 20,
+    this.matchSecondsLeft = 20,
     this.matchedSrsIds = const <String>{},
     this.selectedWordSrsId,
     this.selectedDefinition,
     this.outOfLives = false,
     this.matchTimeUp = false,
-    this.secondsLeftGeneric = 15,
+    this.secondsLeftGeneric = 20,
   });
 
   final GameLoadStatus status;
@@ -144,10 +144,10 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
   bool _clozeTimeoutInProgress = false;
 
   static const int _baseXp = 10;
-  static const int _clozePerQuestionSeconds = 45;
-  static const int _matchRoundSeconds = 90;
+  static const int _clozePerQuestionSeconds = 20;
+  static const int _matchRoundSeconds = 20;
   static const int _matchMissPenaltySeconds = 3;
-  static const int _genericQuestionSeconds = 15;
+  static const int _genericQuestionSeconds = 20;
 
   bool get _isCloze => kind == GameSessionKind.completeSentence;
   bool get _isMatch => kind == GameSessionKind.matchMeanings;
@@ -214,7 +214,7 @@ class GameSessionNotifier extends StateNotifier<GameSessionVm> {
         );
         _startMatchTimer();
       } else {
-        // context_clash, odd_one_out, true_or_bluff — 15s timer per question
+        // context_clash, odd_one_out, true_or_bluff — 20s timer per question
         state = GameSessionVm(
           status: GameLoadStatus.ready,
           deck: deck,

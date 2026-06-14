@@ -29,6 +29,8 @@ colors:
   on-tertiary: '#4a3c00'
   tertiary-container: '#ebcd62'
   on-tertiary-container: '#6a5600'
+  pink: '#f795bb'
+  dusty-rose: '#e3bdbd'
   error: '#ba1a1a'
   on-error: '#ffffff'
   error-container: '#ffdad6'
@@ -112,7 +114,7 @@ The visual style is a blend of **Minimalism** and **Tactile** design. It uses he
 
 ## Colors
 
-The palette is anchored by a warm Cream (#fffbdc) background, which provides a softer reading experience than pure white. Mint (#7fe1be) serves as the primary action color, symbolizing growth and the "flow" of the river. Lavender (#bbaaf6) and Sunny Yellow (#f4d569) act as secondary accents for highlights and progress indicators.
+The palette is anchored by a warm Cream (#fffbdc) background, which provides a softer reading experience than pure white. Mint (#7fe1be) serves as the primary action color, symbolizing growth and the "flow" of the river. Lavender (#bbaaf6), Pastel Pink (#f795bb), and Sunny Yellow (#f4d569) act as secondary accents for highlights and progress indicators.
 
 **Dark Mode Strategy:**
 Transition from a "Sunlight" theme to a "Midnight Library" theme. The cream background shifts to a deep, desaturated charcoal with a slight yellow tint (#1c1b14). Pastel accents are muted and slightly deepened (e.g., Mint becomes a sage teal, Pink becomes a dusty mauve) to maintain readability and reduce eye strain while preserving the whimsical character.

@@ -8,6 +8,8 @@ class HomeStatsRead(BaseModel):
     books_count: int
     vault_count: int
     due_reviews_count: int
+    xp_earned_total: int = 0
+    xp_progress_percent: float = 0.0
 
 
 class HomeRead(BaseModel):

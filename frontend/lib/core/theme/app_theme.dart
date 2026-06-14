@@ -7,6 +7,8 @@ enum AppThemeMode { sunlight, midnight }
 class AppColors {
   static const Color mint = Color(0xFF73D8B4);
   static const Color lavender = Color(0xFFA894ED);
+  static const Color pink = Color(0xFFF795BB);
+  static const Color dustyRose = Color(0xFFE3BDBD);
 
   static const Color lightBg = Color(0xFFF1F0CC);
   static const Color lightSurface = Color(0xFFF7F7F7);

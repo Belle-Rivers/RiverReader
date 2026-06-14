@@ -1,6 +1,14 @@
 from app.schemas.health import HealthResponse
+from app.schemas.backup import GameCacheBackupRead, UserDataBackupRead, UserProfileBackupRead
 from app.schemas.home import HomeRead, HomeStatsRead
-from app.schemas.profile import UserProfileCreate, UserProfileRead, UserProfileUpdate, UserLogin
+from app.schemas.profile import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    UserLogin,
+    UserProfileCreate,
+    UserProfileRead,
+    UserProfileUpdate,
+)
 from app.schemas.reading import (
     AiRequest,
     AiResponse,
@@ -43,6 +51,7 @@ __all__ = [
     "GameDeckItemRead",
     "GameDecksRead",
     "HealthResponse",
+    "GameCacheBackupRead",
     "HomeRead",
     "HomeStatsRead",
     "HighlightCreate",
@@ -51,8 +60,12 @@ __all__ = [
     "ReadingProgressUpsert",
     "ReviewEventRead",
     "ReviewGradeCreate",
+    "ForgotPasswordRequest",
     "SrsItemRead",
+    "UserDataBackupRead",
+    "ResetPasswordRequest",
     "UserProfileCreate",
+    "UserProfileBackupRead",
     "UserProfileRead",
     "UserProfileUpdate",
     "UserLogin",
