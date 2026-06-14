@@ -266,18 +266,29 @@ def import_user_backup(session: Session, payload: UserDataBackupRead) -> UserDat
         )
 
     for srs_item in payload.srs_items:
-        session.add(
-            SrsItem(
-                id=srs_item.id,
-                highlight_id=srs_item.highlight_id,
-                ease_factor=srs_item.ease_factor,
-                interval_days=srs_item.interval_days,
-                repetitions=srs_item.repetitions,
-                mastery_level=srs_item.mastery_level,
-                next_review_at=srs_item.next_review_at,
-                last_review_at=srs_item.last_review_at,
+        existing = session.exec(
+            select(SrsItem).where(SrsItem.highlight_id == srs_item.highlight_id)
+        ).first()
+        if existing is None:
+            session.add(
+                SrsItem(
+                    id=srs_item.id,
+                    highlight_id=srs_item.highlight_id,
+                    ease_factor=srs_item.ease_factor,
+                    interval_days=srs_item.interval_days,
+                    repetitions=srs_item.repetitions,
+                    mastery_level=srs_item.mastery_level,
+                    next_review_at=srs_item.next_review_at,
+                    last_review_at=srs_item.last_review_at,
+                )
             )
-        )
+        else:
+            existing.ease_factor = srs_item.ease_factor
+            existing.interval_days = srs_item.interval_days
+            existing.repetitions = srs_item.repetitions
+            existing.mastery_level = srs_item.mastery_level
+            existing.next_review_at = srs_item.next_review_at
+            existing.last_review_at = srs_item.last_review_at
 
     for review in payload.review_events:
         session.add(
