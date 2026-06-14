@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/theme/app_theme.dart';
 import '../application/auth_providers.dart';
@@ -71,6 +72,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
         invalidateGameDecks(ref);
       }
       HapticFeedback.mediumImpact();
+      if (_mode == RegisterMode.create) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('show_tour_on_login', true);
+      }
       if (mounted) context.go('/');
     } on RegistrationApiException catch (e) {
       setState(() => _errorMessage = e.message);

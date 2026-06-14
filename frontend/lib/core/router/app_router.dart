@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/application/current_user_provider.dart';
 import '../../features/games/presentation/games_page.dart';
 import '../../features/games/presentation/game_session_page.dart';
 import '../../features/games/application/game_session_controller.dart';
@@ -14,9 +15,39 @@ import '../../features/vault/presentation/vault_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/splash/presentation/splash_page.dart';
 
+class _AuthNotifier extends ChangeNotifier {
+  _AuthNotifier(this._ref) {
+    _sub = _ref.listen<String?>(sessionUserIdProvider, (_, __) => notifyListeners());
+  }
+  final Ref _ref;
+  late final ProviderSubscription<String?> _sub;
+
+  @override
+  void dispose() {
+    _sub.close();
+    super.dispose();
+  }
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authNotifier = _AuthNotifier(ref);
+  ref.onDispose(authNotifier.dispose);
+
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: authNotifier,
+    redirect: (BuildContext context, GoRouterState state) {
+      final String? userId = ref.read(sessionUserIdProvider);
+      final bool isLoggedIn = userId != null;
+      final String location = state.matchedLocation;
+
+      const authRoutes = <String>{'/register', '/splash', '/forgot-password'};
+      final bool isOnAuthRoute = authRoutes.contains(location);
+
+      if (!isLoggedIn && !isOnAuthRoute) return '/register';
+      if (isLoggedIn && location == '/splash') return '/';
+      return null;
+    },
     routes: [
       GoRoute(
         path: '/splash',

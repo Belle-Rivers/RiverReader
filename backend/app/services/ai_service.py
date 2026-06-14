@@ -39,6 +39,8 @@ For "context_clash":
 
 For "odd_one_out":
 - Provide 3 genuine synonyms of "{word}" and exactly 1 misfit word with no semantic overlap.
+- ALL 4 words must be completely distinct from each other (no repetition).
+- ALL 4 words must be in the exact same part of speech and morphological form as "{word}" (e.g., if "{word}" is a past-tense verb, all choices must be past-tense verbs).
 - Include a brief B1/B2 definition (max 12 words) for the misfit in "misfit_definition".
 - "justification": explain why the misfit is NOT related to "{word}" and why the 3 synonyms ARE related. Compare meanings directly.
 

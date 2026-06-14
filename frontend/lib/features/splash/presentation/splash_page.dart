@@ -1,16 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SplashPage extends StatefulWidget {
+import '../../auth/application/current_user_provider.dart';
+
+class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
 
   @override
-  State<SplashPage> createState() => _SplashPageState();
+  ConsumerState<SplashPage> createState() => _SplashPageState();
 }
 
-class _SplashPageState extends State<SplashPage> {
+class _SplashPageState extends ConsumerState<SplashPage> {
   Timer? _timer;
 
   @override
@@ -18,7 +21,8 @@ class _SplashPageState extends State<SplashPage> {
     super.initState();
     _timer = Timer(const Duration(milliseconds: 1800), () {
       if (mounted) {
-        context.go('/');
+        final userId = ref.read(sessionUserIdProvider);
+        context.go(userId != null ? '/' : '/register');
       }
     });
   }

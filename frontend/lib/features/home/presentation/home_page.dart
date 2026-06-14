@@ -35,14 +35,19 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (_tourRequested) return;
     _tourRequested = true;
     final prefs = await SharedPreferences.getInstance();
-    final seen = prefs.getBool(_tourKey) ?? false;
-    if (seen || !mounted) return;
+    final shouldShow = prefs.getBool('show_tour_on_login') ?? false;
+    if (!shouldShow || !mounted) return;
+    
+    await prefs.remove('show_tour_on_login');
+    
+    if (!mounted) return;
+    
     await showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) => const _TourDialog(),
     );
-    await prefs.setBool(_tourKey, true);
+    if (mounted) await prefs.setBool(_tourKey, true);
   }
 
   @override
@@ -147,7 +152,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         const Text(
-                            'No reading session yet. Add a book from your shelf.'),
+                            'No reading session yet. Add a book to your shelf.'),
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: () => context.go('/shelf'),
@@ -264,7 +269,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Text(
-                        'No words in vault yet. Tap words while reading to capture them.'),
+                        'No words in vault yet. Double-tap words while reading to capture them.'),
                   );
                 }
                 return Column(
