@@ -315,6 +315,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       textColorHex: _readerTextColorHex(context),
       backgroundColorHex: _readerBackgroundColorHex(context),
       useOriginalFont: ref.read(readerPreferencesProvider).useOriginalFont,
+      fontSize: _readerFontSize,
     );
   }
 
@@ -467,7 +468,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     setState(() {
       _readerFontSize = nextFontSize;
     });
-    await _applyReaderFontSize();
+    await _syncChapterToWebView();
   }
   String _readerTextColorHex(BuildContext context) {
     final Color textColor = Theme.of(context).colorScheme.onSurface;
@@ -499,6 +500,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     required String textColorHex,
     required String backgroundColorHex,
     required bool useOriginalFont,
+    required double fontSize,
   }) {
     final String escapedHtml = jsonEncode(chapterHtml);
     final String escapedTitle = jsonEncode(chapterTitle);
@@ -523,6 +525,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       background: $backgroundColorHex !important;
       color: $textColorHex !important;
       font-family: ${useOriginalFont ? "Georgia, 'Times New Roman', serif" : "'DynaPuff', cursive"};
+      font-size: ${fontSize.toStringAsFixed(0)}px;
       line-height: 1.7;
       touch-action: manipulation;
       -webkit-text-size-adjust: 100%;
