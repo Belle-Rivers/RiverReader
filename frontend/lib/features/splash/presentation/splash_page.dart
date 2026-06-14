@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../auth/application/current_user_provider.dart';
+import '../../auth/data/registration_api.dart';
+import '../../../core/storage/auto_backup_service.dart';
 
 class SplashPage extends ConsumerStatefulWidget {
   const SplashPage({super.key});
@@ -19,11 +22,13 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 1800), () {
-      if (mounted) {
-        final userId = ref.read(sessionUserIdProvider);
-        context.go(userId != null ? '/' : '/register');
-      }
+    _attemptAutoRestore().whenComplete(() {
+      _timer = Timer(const Duration(milliseconds: 1800), () {
+        if (mounted) {
+          final userId = ref.read(sessionUserIdProvider);
+          context.go(userId != null ? '/' : '/register');
+        }
+      });
     });
   }
 
@@ -31,6 +36,33 @@ class _SplashPageState extends ConsumerState<SplashPage> {
   void dispose() {
     _timer?.cancel();
     super.dispose();
+  }
+
+  Future<void> _attemptAutoRestore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedUserId = prefs.getString('session_user_id');
+    if (savedUserId == null) return;
+
+    try {
+      await RegistrationApi().getUserProfile(savedUserId);
+      return;
+    } catch (_) {
+      // User not found on backend — it was likely wiped.
+    }
+
+    final backupData = await loadBackupFromStorage();
+    if (backupData == null || !mounted) return;
+
+    try {
+      final Map<String, dynamic> result =
+          await RegistrationApi().importUserData(backupData);
+      final String restoredUserId =
+          (result['user'] as Map<String, dynamic>)['id'] as String;
+      ref.read(sessionUserIdProvider.notifier).setUserId(restoredUserId);
+      await prefs.setString('session_user_id', restoredUserId);
+    } catch (_) {
+      // Restore failed — user will land on the register page.
+    }
   }
 
   @override

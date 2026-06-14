@@ -3,7 +3,7 @@ from uuid import UUID
 
 from sqlmodel import Session, select
 
-from app.models import Highlight, ReviewEvent, SrsItem
+from app.models import Book, Highlight, ReviewEvent, SrsItem
 from app.schemas import GameAnswerCreate, ReviewEventRead, ReviewGradeCreate
 
 
@@ -34,9 +34,11 @@ def list_due_items(
     statement = (
         select(SrsItem, Highlight)
         .join(Highlight, SrsItem.highlight_id == Highlight.id)
+        .join(Book, Highlight.book_id == Book.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
             SrsItem.next_review_at <= now,
         )
         .order_by(SrsItem.next_review_at.asc())

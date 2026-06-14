@@ -34,7 +34,7 @@ def _backfill_worker(user_id: UUID | None = None) -> None:
     Runs as a background task with a 2-second rate-limit guard between API calls.
     """
     global _backfill_running
-    from app.models import GameCache, Highlight
+    from app.models import Book, GameCache, Highlight
     from app.services import ai_service
     from app.services.ai_service import _cache_needs_regeneration
     from app.services.highlight_service import ensure_game_cache_pending
@@ -53,8 +53,13 @@ def _backfill_worker(user_id: UUID | None = None) -> None:
 
     session = next(get_session())
     try:
-        stmt = select(Highlight.target_word, Highlight.context_sentence).where(
-            Highlight.is_deleted == False  # noqa: E712
+        stmt = (
+            select(Highlight.target_word, Highlight.context_sentence)
+            .join(Book, Highlight.book_id == Book.id)
+            .where(
+                Highlight.is_deleted == False,  # noqa: E712
+                Book.is_deleted == False,  # noqa: E712
+            )
         )
         if user_id is not None:
             stmt = stmt.where(Highlight.user_id == user_id)
@@ -143,15 +148,17 @@ def trigger_user_backfill(user_id: UUID, background_tasks: BackgroundTasks) -> d
 @game_router.get("/cache-status", summary="Game cache readiness for a user's vault words")
 def get_cache_status(user_id: UUID, session: SessionDep) -> dict:
     """Return how many vault words have AI game content ready vs still pending."""
-    from app.models import Highlight
+    from app.models import Book, Highlight
     from app.services.ai_service import is_cache_complete
     from sqlmodel import select
 
     words = session.exec(
         select(Highlight.target_word)
+        .join(Book, Highlight.book_id == Book.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
         )
         .distinct()
     ).all()

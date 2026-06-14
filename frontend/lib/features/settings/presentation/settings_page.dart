@@ -1,4 +1,5 @@
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,7 +87,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _feedback = null;
     });
     try {
-      final savedPath = await ref.read(backupAutoExportProvider).exportNow();
+      final savedPath = await ref.read(backupAutoExportProvider).exportNow(forceDownload: true);
       if (mounted && savedPath != null) {
         setState(() => _feedback = 'Export saved to $savedPath');
       }
@@ -128,6 +129,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) setState(() => _feedback = 'Import failed: $err');
     } finally {
       if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  Future<void> _pickBackupLocation() async {
+    final controller = ref.read(backupAutoExportProvider);
+    final String fileName = await controller.backupFileName();
+    final bool success = await FileStorageManager.pickSaveFile('$fileName.json');
+    if (mounted) {
+      setState(() {
+        _feedback = success
+            ? 'Backup location set. Auto-exports will overwrite this file.'
+            : 'Could not set backup location.';
+      });
     }
   }
 
@@ -293,6 +307,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     ),
                   ],
                 ),
+                if (kIsWeb && FileStorageManager.isFileSystemAccessSupported) ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: _pickBackupLocation,
+                    icon: const Icon(Icons.folder_open_outlined),
+                    label: const Text('Choose backup location'),
+                  ),
+                ],
               ],
             ),
           ),

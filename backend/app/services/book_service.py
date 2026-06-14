@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
+import os
 from sqlmodel import Session, select
 
 from app.models import Book, BookChapter, ReadingProgress
@@ -23,12 +24,14 @@ def _chapters_for_book(session: Session, book_id: UUID) -> list[BookChapter]:
 def _read_book(session: Session, book: Book) -> BookRead:
     progress_statement = select(ReadingProgress).where(ReadingProgress.book_id == book.id)
     progress = session.exec(progress_statement).first()
+    epub_exists = os.path.exists(f"data/books/{book.id}.epub")
     
     return BookRead.model_validate(book).model_copy(
         update={
             "chapters": _chapters_for_book(session, book.id),
             "progress_percent": progress.progress_percent if progress else None,
             "last_read_at": progress.last_read_at if progress else None,
+            "epub_file_exists": epub_exists,
         }
     )
 

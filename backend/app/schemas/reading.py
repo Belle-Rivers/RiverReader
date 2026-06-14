@@ -51,6 +51,7 @@ class BookRead(BaseModel):
     chapters: list[BookChapterRead] = Field(default_factory=list)
     progress_percent: float | None = None
     last_read_at: datetime | None = None
+    epub_file_exists: bool = True
 
     model_config = {"from_attributes": True}
 

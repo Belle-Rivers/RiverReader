@@ -760,6 +760,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
           lastTapTime = 0;
           if (preventDefaultFn) preventDefaultFn();
           captureWordAt(x, y);
+          readerGestureState.suppressTapUntil = Date.now() + 600;
         } else {
           lastTapTime = now;
           lastTapX = x;
@@ -772,6 +773,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       });
       root.addEventListener('dblclick', function(e) {
         e.preventDefault();
+        if (Date.now() < readerGestureState.suppressTapUntil) return;
         captureWordAt(e.clientX, e.clientY);
       });
       root.addEventListener('contextmenu', function(e) { e.preventDefault(); });

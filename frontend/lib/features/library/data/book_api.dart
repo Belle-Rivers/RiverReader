@@ -9,6 +9,7 @@ class BookApiModel {
     this.coverRef,
     this.progressPercent,
     this.lastReadAt,
+    this.epubFileExists = true,
     this.chapters = const <BookChapterApiModel>[],
   });
 
@@ -18,6 +19,7 @@ class BookApiModel {
   final String? coverRef;
   final double? progressPercent;
   final DateTime? lastReadAt;
+  final bool epubFileExists;
   final List<BookChapterApiModel> chapters;
 
   factory BookApiModel.fromJson(Map<String, dynamic> json) {
@@ -28,6 +30,7 @@ class BookApiModel {
       coverRef: json['cover_ref'] as String?,
       progressPercent: (json['progress_percent'] as num?)?.toDouble(),
       lastReadAt: json['last_read_at'] != null ? DateTime.parse(json['last_read_at'] as String) : null,
+      epubFileExists: json['epub_file_exists'] as bool? ?? true,
       chapters: ((json['chapters'] as List<dynamic>?) ?? <dynamic>[])
           .map((dynamic item) => BookChapterApiModel.fromJson(item as Map<String, dynamic>))
           .toList(),

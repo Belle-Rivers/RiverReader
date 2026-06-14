@@ -65,51 +65,76 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
                     itemBuilder: (_, i) {
                       final book = books[i];
                       return GestureDetector(
-                        onTap: () {
-                          ref.invalidate(libraryShelfControllerProvider);
-                          context.push('/reader/${book.id}', extra: book);
-                        },
-                        onLongPress: () => _showBookActions(context, book),
+                        onTap: book.epubFileExists
+                            ? () {
+                                ref.invalidate(libraryShelfControllerProvider);
+                                context.push('/reader/${book.id}', extra: book);
+                              }
+                            : () => _promptReUpload(book),
+                        onLongPress: book.epubFileExists
+                            ? () => _showBookActions(context, book)
+                            : () => _promptReUpload(book),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
-                              child: Container(
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(22),
-                                  gradient: book.coverRef == null
-                                      ? const LinearGradient(
-                                          colors: [Color(0xFF5A4432), Color(0xFF32261E)],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        )
-                                      : null,
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: book.coverRef != null
-                                    ? Image.network(
-                                        '${BookApi.baseUrl}/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => Container(
-                                          color: const Color(0xFF32261E),
-                                          child: const Center(child: Icon(Icons.book_rounded, color: Colors.white, size: 40)),
-                                        ),
-                                      )
-                                    : Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Align(
-                                          alignment: Alignment.bottomLeft,
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(book.title, style: theme.textTheme.titleLarge?.copyWith(color: Colors.white)),
-                                              Text(book.author ?? 'Unknown Author', style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white70)),
-                                            ],
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(22),
+                                      gradient: book.coverRef == null
+                                          ? const LinearGradient(
+                                              colors: [Color(0xFF5A4432), Color(0xFF32261E)],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            )
+                                          : null,
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: book.coverRef != null
+                                        ? Image.network(
+                                            '${BookApi.baseUrl}/v1/books/${book.id}/cover?user_id=${ref.read(sessionUserIdProvider)}',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => Container(
+                                              color: const Color(0xFF32261E),
+                                              child: const Center(child: Icon(Icons.book_rounded, color: Colors.white, size: 40)),
+                                            ),
+                                          )
+                                        : Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Align(
+                                              alignment: Alignment.bottomLeft,
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(book.title, style: theme.textTheme.titleLarge?.copyWith(color: Colors.white)),
+                                                  Text(book.author ?? 'Unknown Author', style: theme.textTheme.bodyLarge?.copyWith(color: Colors.white70)),
+                                                ],
+                                              ),
+                                            ),
                                           ),
+                                  ),
+                                  if (!book.epubFileExists)
+                                    Positioned.fill(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(22),
+                                          color: Colors.black.withValues(alpha: .55),
+                                        ),
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 36),
+                                            const SizedBox(height: 6),
+                                            Text('Tap to re-upload', style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white)),
+                                          ],
                                         ),
                                       ),
+                                    ),
+                                ],
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -125,6 +150,45 @@ class _LibraryShelfPageState extends ConsumerState<LibraryShelfPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _promptReUpload(BookApiModel book) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        content: const Text(
+          'This book\'s file was lost on the server. '
+          'Re-upload the EPUB to continue where you left off.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Upload EPUB'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['epub'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || result.files.first.bytes == null) return;
+    if (!mounted) return;
+
+    final file = result.files.first;
+    await ref.read(libraryShelfControllerProvider.notifier).uploadBook(
+      file.name,
+      file.name,
+      file.bytes!.toList(),
     );
   }
 

@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../auth/application/current_user_provider.dart';
+import '../../library/controllers/library_shelf_controller.dart';
 import '../../library/data/book_api.dart';
 import '../../vault/application/vault_provider.dart';
 import '../../vault/data/vault_api.dart';
@@ -49,6 +51,46 @@ class _HomePageState extends ConsumerState<HomePage> {
       builder: (context) => const _TourDialog(),
     );
     if (mounted) await prefs.setBool(_tourKey, true);
+  }
+
+  Future<void> _promptHomeReUpload(BookApiModel book) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(book.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        content: const Text(
+          'This book\'s file was lost on the server. '
+          'Re-upload the EPUB to continue where you left off.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Upload EPUB'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['epub'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || result.files.first.bytes == null) return;
+    if (!mounted) return;
+
+    final file = result.files.first;
+    await ref.read(libraryShelfControllerProvider.notifier).uploadBook(
+      file.name,
+      file.name,
+      file.bytes!.toList(),
+    );
+    ref.invalidate(homeSummaryProvider);
   }
 
   @override
@@ -174,7 +216,9 @@ class _HomePageState extends ConsumerState<HomePage> {
                     book.progressPercent ??
                     0;
                 return InkWell(
-                  onTap: () => context.push('/reader/${book.id}', extra: book),
+                  onTap: book.epubFileExists
+                      ? () => context.push('/reader/${book.id}', extra: book)
+                      : () => _promptHomeReUpload(book),
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(

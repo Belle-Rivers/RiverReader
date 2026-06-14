@@ -39,7 +39,7 @@ class BackupAutoExportController {
     unawaited(exportNow());
   }
 
-  Future<String?> exportNow() async {
+  Future<String?> exportNow({bool forceDownload = false}) async {
     if (_exporting) {
       return null;
     }
@@ -55,6 +55,7 @@ class BackupAutoExportController {
       final String savedPath = await FileStorageManager.writeTextFile(
         fileName,
         jsonEncode(payload),
+        forceDownload: forceDownload,
       );
       // ignore: avoid_print
       print('[RiverReader] auto-export saved to $savedPath');
@@ -66,6 +67,13 @@ class BackupAutoExportController {
     } finally {
       _exporting = false;
     }
+  }
+
+  /// Return the deterministic backup filename for the current user.
+  Future<String> backupFileName() async {
+    final String? userId = _ref.read(sessionUserIdProvider);
+    if (userId == null) return 'RiverReader_backup';
+    return _backupFileName(userId);
   }
 
   Future<Map<String, dynamic>> importFromText(String contents) async {

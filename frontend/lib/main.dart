@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,6 +72,17 @@ class RiverReaderApp extends ConsumerWidget {
       theme: themeMode.themeData,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      builder: (context, child) {
+        if (!kIsWeb) return child!;
+        final width = MediaQuery.of(context).size.width;
+        if (width < 768) return child!;
+        return ColoredBox(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: Center(
+            child: SizedBox(width: 900, child: child),
+          ),
+        );
+      },
     );
   }
 }

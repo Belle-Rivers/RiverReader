@@ -76,9 +76,11 @@ def _recent_items(
     statement = (
         select(SrsItem, Highlight)
         .join(Highlight, SrsItem.highlight_id == Highlight.id)
+        .join(Book, Highlight.book_id == Book.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
         )
         .order_by(func.random())
         .limit(limit)
@@ -177,9 +179,11 @@ def _meaning_choices(
 
     other_words = session.exec(
         select(Highlight.target_word)
+        .join(Book, Highlight.book_id == Book.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
             Highlight.target_word != correct_word,
         )
         .order_by(func.random())
@@ -207,9 +211,11 @@ def _word_choices(session: Session, user_id: UUID, correct: str) -> list[str]:
     from sqlmodel import func
     statement = (
         select(Highlight.target_word)
+        .join(Book, Highlight.book_id == Book.id)
         .where(
             Highlight.user_id == user_id,
             Highlight.is_deleted == False,  # noqa: E712
+            Book.is_deleted == False,  # noqa: E712
             Highlight.target_word != correct,
         )
         .order_by(func.random())
